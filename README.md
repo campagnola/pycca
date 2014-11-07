@@ -1,10 +1,13 @@
-PYCC: Pure-python C and assembler compilers 
+PYCC: Pure-python C and assembler compilers
 ===========================================
+
+Luke Campagnola, 2014
+
 
 Motivation
 ----------
 
-Python offers many options for high-performance conputing,
+Python offers many options for high-performance computing,
 but it is often the case that each of these significantly complicates
 the task of distributing packages, either because they must be compiled
 once for every target platform, or because they depend on third-party
@@ -30,5 +33,5 @@ Pre-pre alpha:
 
 * Can load executable machine code into memory pages on linux (and probably osx)
   and call this executable code via ctypes.
-* Simple assembler system in progress.
+* Simple assembler system in progress; see examples.py.
 
