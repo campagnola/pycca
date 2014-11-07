@@ -35,6 +35,11 @@ import struct
 import subprocess
 import tempfile
 
+if sys.maxsize > 2**32:
+    ARCH = 64
+else:
+    ARCH = 32
+
 
 class Register(int):
     """A float holding information about its source.
@@ -97,7 +102,15 @@ rbp = Register(0b101, 'rbp', 64)
 rsi = Register(0b110, 'rsi', 64)
 rdi = Register(0b111, 'rdi', 64)
 
+
+
 sib = 0b100  # Indicates SIB byte usage
+
+class Rex(object):
+    pass
+
+rex = Rex()
+rex.w = chr(0x48)
 
 
 mod_vals = {
@@ -137,7 +150,12 @@ def pop(reg):
 
 def mov(a, b):
     if isinstance(a, Register) and isinstance(b, Register):
-        return mov_rm_r(b, a)
+        if a.bits == 32:
+            return mov_rm32_r32(a, b)
+        elif a.bits == 64:
+            return mov_rm64_r64(a, b)
+        else:
+            raise NotImplementedError('register bit size %d not supported' % a.bits)
     elif isinstance(a, Register) and isinstance(b, int):
         if a.bits == 32:
             return mov_r32_imm32(a, b)
@@ -157,7 +175,29 @@ def mov_r_rm(r, rm):
     """
     # Note: as with many opcodes, flipping bit 6 swaps the R->RM order
     #       yielding 0x89 (mov_rm_r)
-    return '\x8B' + mod_reg_rm('dir', r, rm)
+    return '\x8b' + mod_reg_rm('dir', r, rm)
+
+def mov_rm32_r32(rm, r):
+    """ MOV R/M,R
+    
+    Opcode: 89 /r (uses mod_reg_r/m byte)
+    Op/En: MR (R/M is dest; REG is source)
+    Move from R to R/M 
+    """
+    # Note: as with many opcodes, flipping bit 6 swaps the R->RM order
+    #       yielding 0x8B (mov_r_rm)
+    return '\x89' + mod_reg_rm('dir', r, rm)
+
+def mov_rm64_r64(rm, r):
+    """ MOV R/M,R
+    
+    Opcode: 89 /r (uses mod_reg_r/m byte)
+    Op/En: MR (R/M is dest; REG is source)
+    Move from R to R/M 
+    """
+    # Note: as with many opcodes, flipping bit 6 swaps the R->RM order
+    #       yielding 0x8B (mov_r_rm)
+    return rex.w + '\x89' + mod_reg_rm('dir', r, rm)
 
 def mov_r32_imm32(r, val, fmt='<I'):
     """ MOV REG,VAL
@@ -173,18 +213,7 @@ def mov_r64_imm64(r, val, fmt='<Q'):
     Opcode: REX.W + b8 + rd io
     Move VAL (64 bit immediate as unsigned int) to 64-bit REG.
     """
-    return chr(0x48) + chr(0xb8 | r) + struct.pack(fmt, val)
-
-def mov_rm_r(rm, r):
-    """ MOV R/M,R
-    
-    Opcode: 89 /r (uses mod_reg_r/m byte)
-    Op/En: MR (R/M is dest; REG is source)
-    Move from R to R/M 
-    """
-    # Note: as with many opcodes, flipping bit 6 swaps the R->RM order
-    #       yielding 0x8B (mov_r_rm)
-    return '\x89' + mod_reg_rm('dir', r, rm)
+    return rex.w + chr(0xb8 | r) + struct.pack(fmt, val)
 
 def lea(r, base, offset, disp):
     """ LEA r,[base+offset+disp]
@@ -236,6 +265,8 @@ def int_(code):
     """
     return '\xcd' + chr(code)
 
+def syscall():
+    return '\x0f\x05'
 
 #define OP_MOV      0x89
 #define OP_POP      0x58
@@ -283,6 +314,7 @@ def run_as(asm):
     for i,line in enumerate(out):
         if "<.text>:" in line:
             return out[i+1:]
+    raise Exception("Error running 'as' or 'objdump' (see above).")
 
 def as_code(asm):
     """Return machine code string for *asm* using gnu as and objdump.
@@ -304,28 +336,32 @@ def as_code(asm):
 
 
 def mkfunction(code):
-    FUNC = ctypes.CFUNCTYPE(None)
-    
+    # Get the system page size
+    pagesize = os.sysconf("SC_PAGESIZE")
+
+    # Create a memory-mapped page with execute privileges
     PROT_NONE = 0
     PROT_READ = 1
     PROT_WRITE = 2
     PROT_EXEC = 4
-    
-    # Get the system page size
-    pagesize = os.sysconf("SC_PAGESIZE")
-    print("Pagesize: %d"%pagesize)
-    
-    # Get a libc handle
-    libc = ctypes.CDLL('libc.so.6', use_errno=True)
-
-    # Create a memory-mapped page with execute privileges
     page = mmap.mmap(-1, pagesize, prot=PROT_READ|PROT_WRITE|PROT_EXEC)
 
+    # write function code to the page
     page.seek(0)
     page.write(code)
-
+    page.write('\x00')
+    
+    # get the page address
+    #buf = ctypes.c_char_p.from_buffer(page)
+    buf = (ctypes.c_char * len(code)).from_buffer(page)
+    buf_addr = ctypes.addressof(buf)
+    #print "code:"
+    #phex(buf.raw)
+    #print "addr: %x" % buf_addr
+    
     # Turn this into a callable function
-    f = FUNC(buf_addr)
+    f = ctypes.CFUNCTYPE(None)(buf_addr)
+    f.page = page  # Make sure page stays alive as long as function pointer!
     return f
 
 
