@@ -126,4 +126,22 @@ fn.restype = ctypes.c_uint64
 print "Return: 0x%x" % fn()
 
 
+#   Example 6: Access values from an array
+#------------------------------------------------------
 
+import numpy as np
+data = np.ones(10, dtype=np.uint64)
+I = 5
+data[I] = 12345
+addr = data.ctypes.data
+fn = mkfunction([
+    mov(rax, [addr+I*data.strides[0]]),
+    mov(rbx, addr),
+    mov(rcx, 54321),
+    mov([rbx+I*data.strides[0]], rcx),
+    ret(),
+])
+fn.restype = ctypes.c_uint64
+
+print "Read from array: %d" % fn()
+print "Modified array: %d" % data[5]
