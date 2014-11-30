@@ -326,23 +326,24 @@ xmm7 = Register(0b111, 'xmm7', 16)
 class Code(object):
     """
     Represents partially compiled machine code with a table of unresolved
-    symbol replacements.
+    expression replacements.
     
     Code instances can be compiled to a complete machine code string once all
-    symbol values can be determined.
+    expression values can be determined.
     """
     def __init__(self, code):
         self.code = code
         self.replacements = {}
         
-    def replace(self, index, symbol, packing):
+    def replace(self, index, expr, packing):
         """
         Add a new replacement starting at *index*. 
         
-        When this Code is compiled, the value of *symbol* will be packed with
-        *packing* and written into the code at *index*.
+        When this Code is compiled, the value of *expr* will be evaluated,
+        packed with *packing* and written into the code at *index*. The expression
+        is evaluated using the program's symbols as local variables.
         """
-        self.replacements[index] = (symbol, packing)
+        self.replacements[index] = (expr, packing)
         
     def __len__(self):
         return len(self.code)
@@ -350,8 +351,9 @@ class Code(object):
     def compile(self, symbols):
         code = self.code
         for i,repl in self.replacements.items():
-            symbol, packing = repl
-            val = struct.pack(packing, symbols[symbol])
+            expr, packing = repl
+            val = eval(expr, symbols)
+            val = struct.pack(packing, val)
             code = code[:i] + val + code[i+len(val):]
         return code
 
@@ -372,6 +374,9 @@ class Label(object):
     def __len__(self):
         return 0
         
+    def compile(self, symbols):
+        return ''
+
 
 def ptr(arg):
     """Create a memory pointer from arg. 
@@ -575,6 +580,29 @@ def call_rel(addr):
     # Note: there is no 64-bit relative call.
     return '\xe8' + struct.pack('i', addr)
 
+def jmp(addr):
+    if isinstance(addr, Register):
+        return jmp_abs(addr)
+    elif isinstance(addr, (int, str)):
+        return jmp_rel(addr)
+    else:
+        raise TypeError("jmp accepts Register (absolute), integer, or label (relative).")
+
+def jmp_rel(addr):
+    """JMP (relative)
+    """
+    if isinstance(addr, str):
+        code = Code('\xe9\x00\x00\x00\x00')
+        code.replace(1, "%s - next_instr_addr" % addr, 'i')
+        return code
+    elif isinstance(addr, int):
+        return '\xe9' + struct.pack('i', addr)
+
+def jmp_abs(reg):
+    """JMP (absolute)
+    """
+    return '\xff' + mod_reg_rm(0b11, 0x4, reg)
+
 def int_(code):
     """INT code
     
@@ -656,11 +684,17 @@ def as_code(asm):
 
 
 class CodePage(object):
+    """
+    Encapsulates a block of executable mapped memory to which a sequence of
+    asm commands are compiled and written. 
+    
+    The memory page(s) may contain multiple functions; use get_function(label)
+    to create functions beginning at a specific location in the code.
+    """
     def __init__(self, asm):
         self.labels = {}
         self.asm = asm
-        code = self.compile(asm)
-        
+        code_size = len(self)
         #pagesize = os.sysconf("SC_PAGESIZE")
         
         # Create a memory-mapped page with execute privileges
@@ -668,12 +702,19 @@ class CodePage(object):
         PROT_READ = 1
         PROT_WRITE = 2
         PROT_EXEC = 4
-        self.page = mmap.mmap(-1, len(code), prot=PROT_READ|PROT_WRITE|PROT_EXEC)
-        self.page.write(code)
+        self.page = mmap.mmap(-1, code_size, prot=PROT_READ|PROT_WRITE|PROT_EXEC)
 
         # get the page address
-        buf = (ctypes.c_char * len(code)).from_buffer(self.page)
+        buf = (ctypes.c_char * code_size).from_buffer(self.page)
         self.page_addr = ctypes.addressof(buf)
+        
+        # Compile machine code and write to the page.
+        code = self.compile(asm)
+        assert len(code) <= len(self.page)
+        self.page.write(code)
+        
+    def __len__(self):
+        return sum(map(len, self.asm))
 
     def get_function(self, label=None):
         addr = self.page_addr
@@ -686,7 +727,7 @@ class CodePage(object):
         return f
 
     def compile(self, asm):
-        ptr = 0
+        ptr = self.page_addr
         # First locate all labels
         for cmd in asm:
             ptr += len(cmd)
@@ -694,12 +735,18 @@ class CodePage(object):
                 self.labels[cmd.name] = ptr
                 
         # now compile
+        symbols = self.labels.copy()
         code = ''
         for cmd in asm:
             if isinstance(cmd, str):
                 code += cmd
             else:
-                code += cmd.compile(self.labels)
+                # Make some special symbols available when resolving
+                # expressions:
+                symbols['instr_addr'] = self.page_addr + len(code)
+                symbols['next_instr_addr'] = symbols['instr_addr'] + len(cmd)
+                
+                code += cmd.compile(symbols)
                 
         return code
         
@@ -707,5 +754,3 @@ class CodePage(object):
 def mkfunction(code):
     page = CodePage(code)
     return page.get_function()
-
-

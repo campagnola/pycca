@@ -108,18 +108,18 @@ msg = ctypes.create_string_buffer("A double:\n")
 #   Example 5: Jump to label
 #----------------------------------------------
 
-#fn = mkfunction([
-    #label('start'),
-    #mov(rax, 0xdeadbeef),
-    #jmp('end'),
-    #mov(rax, 0x1),
-    #label('end'),
-    #ret()
-#])
-#fn.restype = ctypes.c_uint64
+fn = mkfunction([
+    label('start'),
+    mov(rax, 0xdeadbeef),
+    jmp('end'),
+    mov(rax, 0x1),
+    label('end'),
+    ret()
+])
+fn.restype = ctypes.c_uint64
 
-## We get 0xdeadbeef back if the second mov was jumped over.
-#print "Return: 0x%x" % fn()
+# We get 0xdeadbeef back if the second mov was jumped over.
+print "Return: 0x%x" % fn()
 
 
 
