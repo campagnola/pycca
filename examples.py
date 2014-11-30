@@ -80,28 +80,37 @@ msg = ctypes.create_string_buffer("A double:\n")
 
 ## Why do these segv??
 
-#libc = ctypes.cdll.LoadLibrary('libc.so.6')
-#printf = mkfunction([
-    #mov(rax, ctypes.addressof(msg)),
-    #push(rax),
-    #mov(rax, ctypes.addressof(libc.printf)),
-    #call(rax),
-    #pop(0x8),
-#])
+libc = ctypes.cdll.LoadLibrary('libc.so.6')
+printf = mkfunction([
+    mov(rax, ctypes.addressof(msg)),
+    push(rax),
+    mov(rax, ctypes.addressof(libc.printf)),
+    call(rax),
+    pop(0x8),
+])
 #printf()
 
-#libm = ctypes.cdll.LoadLibrary('libm.so.6')
-#exp = mkfunction([
-    #mov(rax, 0x123),
-    #push(rax),
-    #mov(rbx, ctypes.addressof(libm.exp)),
-    #mov(rcx, ptr(rbx)),
-    #call(rcx),
-    #pop(0x8),
-#])
+libm = ctypes.cdll.LoadLibrary('libm.so.6')
+# dereference function pointer
+fp = (ctypes.c_char*8).from_address(ctypes.addressof(libm.exp))
+fp = struct.unpack('Q', fp[:8])[0]
 
-#exp.restype = ctypes.c_double
-#print "exp(0x128) = %f" % exp()
+exp = mkfunction([
+    push(rbp),
+    mov(rbp, rsp),
+    add(rsp, -0x30),
+    mov(xmm0, 0x123),
+    mov(rbx, fp),
+    call(rbx),
+    mov(rax, rbp-0x28),
+    leave(),
+    ret(),
+])
+
+exp.restype = ctypes.c_double
+print "exp(0x128) = %f" % exp()
+
+
 
 
 
@@ -135,10 +144,10 @@ I = 5
 data[I] = 12345
 addr = data.ctypes.data
 fn = mkfunction([
-    mov(rax, [addr+I*data.strides[0]]),
-    mov(rbx, addr),
-    mov(rcx, 54321),
-    mov([rbx+I*data.strides[0]], rcx),
+    mov(rax, [addr+I*data.strides[0]]),  # return value from array[5]
+    mov(rbx, addr),                      # copy array address to register
+    mov(rcx, 54321),                     # copy new value to register
+    mov([rbx+I*data.strides[0]], rcx),   # copy new value to array[5]
     ret(),
 ])
 fn.restype = ctypes.c_uint64

@@ -703,7 +703,7 @@ def mov_r_imm(r, val, fmt=None):
         fmt = '<Q' if fmt is None else fmt
         return rex.w + chr(0xb8 | r) + struct.pack(fmt, val)
     else:
-        raise NotImplementedError('register bit size %d not supported' % a.bits)
+        raise NotImplementedError('register bit size %d not supported' % r.bits)
 
         
 def add(dst, src):
@@ -763,6 +763,13 @@ def ret():
     Return.
     """
     return '\xc3'
+
+def leave():
+    """ LEAVE
+    
+    High-level procedure exit.
+    """
+    return '\xc9'
 
 def call(op):
     """CALL op
