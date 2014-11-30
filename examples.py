@@ -109,16 +109,20 @@ msg = ctypes.create_string_buffer("A double:\n")
 #----------------------------------------------
 
 fn = mkfunction([
+    mov(rax, 0x1),
+    jmp('start'),
+    label('end'),
+    ret(),
+    mov(rax, 0x1),
+    mov(rax, 0x1),
     label('start'),
     mov(rax, 0xdeadbeef),
     jmp('end'),
     mov(rax, 0x1),
-    label('end'),
-    ret()
 ])
 fn.restype = ctypes.c_uint64
 
-# We get 0xdeadbeef back if the second mov was jumped over.
+# We get 0xdeadbeef back if jumps are followed.
 print "Return: 0x%x" % fn()
 
 

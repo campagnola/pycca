@@ -1,4 +1,25 @@
 from pycc.asm import *
+    
+
+def test_effective_address():
+    # test that register/scale/offset arithmetic works
+    assert repr(interpret([rax])) == '[rax]'
+    assert repr(rax + rbx) == '[rax + rbx]'
+    assert repr(8*rax + rbx) == '[8*rax + rbx]'
+    assert repr(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
+    assert repr(interpret([0x1000])) == '[0x1000]'
+    assert repr(0x1000 + rcx) == '[0x1000 + rcx]'
+    assert repr(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
+
+    # test that we can generate a variety of mod_r/m+sib+disp strings
+    assert (interpret([rax])).modrm_sib(rdx) == as_code('mov rdx, qword ptr [rax]')[2:]
+    assert (rbx + rax).modrm_sib(rdx) == as_code('mov rdx, qword ptr [rax + rbx]')[2:]
+    assert (8*rax + rbx).modrm_sib(rdx) == as_code('mov rdx, qword ptr [rax*8 + rbx]')[2:]
+    assert (rbx + 4*rcx + 0x1000).modrm_sib(rdx) == as_code('mov rdx, qword ptr [rbx + 4*rcx + 0x1000]')[2:]
+    assert (interpret([0x1000])).modrm_sib(rdx) == as_code('mov rdx, qword ptr [0x1000]')[2:]
+    assert (0x1000 + rcx).modrm_sib(rdx) == as_code('mov rdx, qword ptr [0x1000 + rcx]')[2:]
+    assert (0x1000 + 2*rcx).modrm_sib(rdx) == as_code('mov rdx, qword ptr [0x1000 + 2*rcx]')[2:]
+
 
 def test_pack_int():
     assert pack_int(0x10) == '\x10\x00'
@@ -9,15 +30,20 @@ def test_pack_int():
     assert pack_int(0x10000000) == '\x00\x00\x00\x10'
     assert pack_int(0x1000000000) == '\x00\x00\x00\x00\x10\x00\x00\x00'
 
+
 def test_mov():
     assert mov(eax, 0x1234567) == as_code('mov eax,0x1234567')
     assert mov(eax, ebx) == as_code('mov eax,ebx')
     assert mov(rax, 0x1234567891) == as_code('mov rax,0x1234567891')
     assert mov(rax, rbx) == as_code('mov rax,rbx')
-    #assert mov(ptr(0x12345), rax) == as_code('mov dword ptr [0x12345], rax')
-    #assert mov(ptr(0x12345), eax) == as_code('mov dword ptr [0x12345], eax')
-    #assert mov(rax, ptr(0x12345)) == as_code('mov rax, dword ptr [0x12345]')
-    #assert mov(eax, ptr(0x12345)) == as_code('mov eax, dword ptr [0x12345]')
+    assert mov([0x12345], rax) == as_code('mov qword ptr [0x12345], rax')
+    assert mov([0x12345], eax) == as_code('mov dword ptr [0x12345], eax')
+    assert mov(rax, [0x12345]) == as_code('mov rax, qword ptr [0x12345]')
+    assert mov(eax, [0x12345]) == as_code('mov eax, dword ptr [0x12345]')
+    assert mov(rax, [rbx]) == as_code('mov rax, qword ptr [rbx]')
+    assert mov(rax, [rcx+rbx]) == as_code('mov rax, qword ptr [rbx+rcx]')
+    assert mov(rax, [8*rbx+rcx]) == as_code('mov rax, qword ptr [8*rbx+rcx]')
+    assert mov(rax, [0x1000+8*rbx+rcx]) == as_code('mov rax, qword ptr 0x1000[8*rbx+rcx]')
     
 def test_int():
     assert int_(0x80) == as_code('int 0x80')
@@ -41,20 +67,26 @@ def test_call():
     assert call(rbx) == as_code('call rbx')
 
 def test_add():
-    assert add(ptr(0x1000), eax) == as_code('add dword ptr [0x1000], eax')
+    assert add(rax, rbx) == as_code('add rax, rbx')
+    assert add(rax, 0x1000) == as_code('add rax, 0x1000')
+    assert add([0x1000], eax) == as_code('add dword ptr [0x1000], eax')
     
 def test_cmp():
-    assert cmp(ptr(0x1000), 0) == as_code('cmp dword ptr [0x1000], 0')
+    assert cmp([0x1000], 0) == as_code('cmp dword ptr [0x1000], 0')
     
 def test_dec():
-    assert dec(ptr(0x1000)) == as_code('dec dword ptr [0x1000]')
+    assert dec([0x1000]) == as_code('dec dword ptr [0x1000]')
     assert dec(eax) == as_code('dec eax')
 
+def test_jmp():
+    assert jmp(rax) == as_code('jmp rax')
+    assert jmp(0x1000) == as_code('jmp .+0x1000')    
+
 def test_je():
-    assert je(ptr(0x1000)) == as_code('je 0x1000')
+    assert je([0x1000]) == as_code('je 0x1000')
 
 def test_jne():
-    assert jne(ptr(0x1000)) == as_code('jne 0x1000')
+    assert jne([0x1000]) == as_code('jne 0x1000')
 
 def test_test():
     assert test(eax, eax) == as_code('test eax,eax')

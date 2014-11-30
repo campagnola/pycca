@@ -159,6 +159,12 @@ def mod_reg_rm(mod, reg, rm):
     "+ disp32"   indicates that a 32-bit displacement value follows the MODR/M
                  byte (or SIB if present)
     """
+    if rm == 'sib':
+        rm = 0b100  # Indicates SIB byte usage when used as R/M field in ModR/M
+    elif rm == 'disp':
+        rm = 0b101  # Indicates displacement value without register offset when used
+                    # as R/M field in ModR/M
+
     return chr(mod_vals[mod] | reg << 3 | rm)
 
 
@@ -166,13 +172,10 @@ def mod_reg_rm(mod, reg, rm):
 #     SIB byte
 #-----------------------------------------
 
-sib = 0b100  # Indicates SIB byte usage when used as R/M field in ModR/M
-
-sb_vals = {1: 0b0, 2: 0b01000000, 3: 0b10000000, 4: 0b11000000}
 def mk_sib(byts, offset, base):
     """Generate SIB byte
     
-    byts : 1, 2, 3, or 4
+    byts : 0, 1, 2, or 3
     offset : Register
     base : register
     
@@ -180,7 +183,7 @@ def mk_sib(byts, offset, base):
     When base is [ebp], add disp32.
     When offset is [esp], no offset is applied.
     """
-    return chr(sb_vals[byts] | offset << 3 | base)
+    return chr(byts << 6 | offset << 3 | base)
 
 
 #
@@ -244,22 +247,147 @@ class Register(int):
         return self._bits
 
     def __add__(self, x):
-        return RegisterOffset(self, x)
+        if isinstance(x, Register):
+            return EffectiveAddress(reg1=self, reg2=x)
+        elif isinstance(x, EffectiveAddress):
+            return x.__add__(self)
+        elif isinstance(x, int):
+            return EffectiveAddress(reg1=self, disp=x)
+        else:
+            raise TypeError("Cannot add type %s to Register." % type(x))
+
+    def __radd__(self, x):
+        return self + x
 
     def __sub__(self, x):
-        return RegisterOffset(self, -x)
+        if isinstance(x, int):
+            return EffectiveAddress(reg1=self, disp=-x)
+        else:
+            raise TypeError("Cannot subtract type %s from Register." % type(x))
+
+    def __mul__(self, x):
+        if isinstance(x, int):
+            if x not in [1, 2, 4, 8]:
+                raise ValueError("Register can only be multiplied by 1, 2, 4, or 8.")
+            return EffectiveAddress(reg1=self, scale=x)
+        else:
+            raise TypeError("Cannot multiply Register by type %s." % type(x))
+        
+    def __rmul__(self, x):
+        return self * x
 
 
-class RegisterOffset(object):
-    """Representation of an address calculated as the contents of a register
-    plus an offset in bytes::
+class EffectiveAddress(object):
+    """Representation of an effective memory address calculated as a 
+    combination of values::
     
         ebp-0x10   # 16 bytes lower than base pointer
+        0x1000 + 8*eax + ebx
     """
-    def __init__(self, reg, offset):
-        self.reg = reg
-        self.offset = offset
+    def __init__(self, reg1=None, scale=None, reg2=None, disp=None):
+        self.reg1 = reg1
+        self.scale = scale
+        self.reg2 = reg2
+        self.disp = disp
+    
+    def copy(self):
+        return EffectiveAddress(self.reg1, self.scale, self.reg2, self.disp)
 
+    def __add__(self, x):
+        y = self.copy()
+        if isinstance(x, Register):
+            if y.reg1 is None:
+                y.reg1 = x
+            elif y.reg2 is None:
+                y.reg2 = x
+            else:
+                raise TypeError("EffectiveAddress cannot incorporate more than"
+                                " two registers.")
+        elif isinstance(x, int):
+            if y.disp is None:
+                y.disp = x
+            else:
+                y.disp += x
+        elif isinstance(x, EffectiveAddress):
+            if x.disp is not None:
+                y = y + x.disp
+            if x.reg2 is not None:
+                y = y + x.reg2
+            if x.reg1 is not None and x.scale is None:
+                y = y + x.reg1
+            elif x.reg1 is not None and x.scale is not None:
+                if y.scale is not None:
+                    raise TypeError("EffectiveAddress can only hold one scaled"
+                                    " register.")
+                if y.reg1 is not None:
+                    if y.reg2 is not None:
+                        raise TypeError("EffectiveAddress cannot incorporate more than"
+                                        " two registers.")
+                    # move reg1 => reg2 to make room for a new reg1*scale
+                    y.reg2 = y.reg1
+                y.reg1 = x.reg1
+                y.scale = x.scale
+            
+        return y
+
+    def __radd__(self, x):
+        return self + x
+
+    def __repr__(self):
+        parts = []
+        if self.disp is not None:
+            parts.append('0x%x' % self.disp)
+        if self.reg1 is not None:
+            if self.scale is not None:
+                parts.append("%d*%s" % (self.scale, self.reg1.name))
+            else:
+                parts.append(self.reg1.name)
+        if self.reg2 is not None:
+            parts.append(self.reg2.name)
+        return '[' + ' + '.join(parts) + ']'
+
+    def modrm_sib(self, reg=None):
+        """Generate a string consisting of mod_reg_r/m byte, optional SIB byte,
+        and optional displacement bytes.
+        """
+        # if we have register+disp, then no SIB is necessary
+        if self.reg1 is not None and self.scale is None and self.reg2 is None:
+            if self.disp is None:
+                return mod_reg_rm('ind', reg, self.reg1)
+            else:
+                disp = struct.pack('i', self.disp)
+                return mod_reg_rm('ind32', reg, self.reg1) + disp
+
+        # special case: disp and no registers
+        #if self.disp is not None and self.reg1 is None and self.reg2 is None:
+            #return (mod_reg_rm('ind', reg, 'sib') + mk_sib(0, esp, ebp) + 
+                    #struct.pack('i', self.disp))
+            
+        # for all other options, use SIB normally
+        if self.disp is None:
+            mod = 'ind'
+        else:
+            mod = 'ind32'
+        
+        byts = {None:0, 1:0, 2:1, 4:2, 8:3}[self.scale]
+        offset = esp if self.reg1 is None else self.reg1
+        base = ebp if self.reg2 is None else self.reg2
+        
+        if self.disp is not None:
+            disp = struct.pack('i', self.disp)
+            if base == ebp:
+                mod = 'ind'  # don't need ind32 if SIB indicates disp32 usage
+        elif base == ebp:
+            disp = struct.pack('i', 0)
+        else:
+            disp = ''
+            
+        modrm_byte = mod_reg_rm(mod, reg, 'sib')
+        sib_byte = mk_sib(byts, offset, base)
+        return modrm_byte + sib_byte + disp
+        
+        
+        
 
 # note: see codeproject link for more comprehensive set of x86-64 registers
 al = Register(0b000, 'al', 8)  # 8-bit registers (low-byte)
@@ -378,32 +506,32 @@ class Label(object):
         return ''
 
 
-def ptr(arg):
-    """Create a memory pointer from arg. 
+#def ptr(arg):
+    #"""Create a memory pointer from arg. 
     
-    This causes arguments to many instructions to be interpreted differently.
-    For example::
+    #This causes arguments to many instructions to be interpreted differently.
+    #For example::
     
-        mov(eax, 0x1234)       # Copy the value 0x1234 to register eax.
-        mov(eax, ptr(0x1234))  # Copy the value at memory location 0x1234 to
-                               # register eax.
-        mov(ptr(eax), ebx)     # Copy the value in ebx to the memory location
-                               # stored in eax.
-    """
-    return Pointer(arg)
+        #mov(eax, 0x1234)       # Copy the value 0x1234 to register eax.
+        #mov(eax, ptr(0x1234))  # Copy the value at memory location 0x1234 to
+                               ## register eax.
+        #mov(ptr(eax), ebx)     # Copy the value in ebx to the memory location
+                               ## stored in eax.
+    #"""
+    #return Pointer(arg)
 
-class Pointer(object):
-    def __init__(self, arg):
-        self.arg = arg
-        if isinstance(arg, Register):
-            self.mode = 'reg'
-        elif isinstance(arg, int):
-            self.mode = 'int'
-        elif isinstance(arg, RegisterOffset):
-            self.mode = 'reg_off'
-        else:
-            raise TypeError("Can only create Pointer for int, Register, or "
-                            "RegisterOffset.")
+#class Pointer(object):
+    #def __init__(self, arg):
+        #self.arg = arg
+        #if isinstance(arg, Register):
+            #self.mode = 'reg'
+        #elif isinstance(arg, int):
+            #self.mode = 'int'
+        #elif isinstance(arg, RegisterOffset):
+            #self.mode = 'reg_off'
+        #else:
+            #raise TypeError("Can only create Pointer for int, Register, or "
+                            #"RegisterOffset.")
 
 
 def pack_int(x, int8=False, int16=True, int32=True, int64=True):
@@ -431,6 +559,30 @@ def pack_uint(x, uint8=False, uint16=True, uint32=True, uint64=True):
             # otherwise, try the next mode
 
 
+def interpret(arg):
+    """General function for interpreting instruction arguments.
+    
+    This converts list arguments to EffectiveAddress, allowing syntax like::
+    
+        mov(rax, [0x1000])  # 0x1000 is a memory address
+        mov(rax, 0x1000)    # 0x1000 is an immediate value
+    """
+    if isinstance(arg, list):
+        assert len(arg) == 1
+        arg = arg[0]
+        if isinstance(arg, Register):
+            return EffectiveAddress(reg1=arg)
+        elif isinstance(arg, int):
+            return EffectiveAddress(disp=arg)
+        elif isinstance(arg, EffectiveAddress):
+            return arg
+        else:
+            raise TypeError("List arguments may only contain a single int, "
+                            "Register, or EffectiveAddress.")
+    else:
+        return arg
+
+
 
 #   Instruction definitions
 #----------------------------------------
@@ -453,26 +605,36 @@ def pop(reg):
     return chr(0x58 | reg)
 
 def mov(a, b):
-    if isinstance(a, Register) and isinstance(b, Register):
-        # Copy register to register
-        if a.bits == 32:
-            return mov_rm32_r32(a, b)
-        elif a.bits == 64:
-            return mov_rm64_r64(a, b)
+    a = interpret(a)
+    b = interpret(b)
+    
+    if isinstance(a, Register):
+        if isinstance(b, Register):
+            # Copy register to register
+            return mov_rm_r(a, b)
+        elif isinstance(b, int):
+            # Copy immediate value to register
+            return mov_r_imm(a, b)
+        elif isinstance(b, EffectiveAddress):
+            # Copy memory to register
+            return mov_r_rm(a, b)
         else:
-            raise NotImplementedError('register bit size %d not supported' % a.bits)
-    elif isinstance(a, Register) and isinstance(b, int):
-        # Copy immediate value to register
-        if a.bits == 32:
-            return mov_r32_imm32(a, b)
-        elif a.bits == 64:
-            return mov_r64_imm64(a, b)
+            raise TypeError("mov second argument must be Register, immediate, "
+                            "or EffectiveAddress")
+    elif isinstance(a, EffectiveAddress):
+        if isinstance(b, Register):
+            # Copy register to memory
+            return mov_rm_r(a, b)
+        elif isinstance(b, int):
+            # Copy immediate value to memory
+            raise NotImplementedError("mov imm=>addr not implemented")
         else:
-            raise NotImplementedError('register bit size %d not supported' % a.bits)
+            raise TypeError("mov second argument must be Register or immediate"
+                            " when first argument is EffectiveAddress")
     else:
-        raise TypeError("mov requires (rega,regb) or (rega,int)")
+        raise TypeError("mov first argument must be Register or EffectiveAddress")
 
-def mov_r_rm(r, rm):
+def mov_r_rm(r, rm, opcode='\x8b'):
     """ MOV R,R/M
     
     Opcode: 8b /r (uses mod_reg_r/m byte)
@@ -481,45 +643,110 @@ def mov_r_rm(r, rm):
     """
     # Note: as with many opcodes, flipping bit 6 swaps the R->RM order
     #       yielding 0x89 (mov_rm_r)
-    return '\x8b' + mod_reg_rm('dir', r, rm)
+    inst = ""
+    if r.bits == 64:
+        inst += rex.w
+    elif r.bits != 32:
+        raise NotImplementedError('register bit size %d not supported' % a.bits)
+    inst += opcode
+    
+    if isinstance(rm, Register):
+        # direct register-register copy
+        inst += mod_reg_rm('dir', r, rm)
+    elif isinstance(rm, EffectiveAddress):
+        # memory to register copy
+        inst += rm.modrm_sib(r)
+        
+    return inst
 
-def mov_rm32_r32(rm, r):
+def mov_rm_r(rm, r):
     """ MOV R/M,R
     
-    Opcode: 89 /r (uses mod_reg_r/m byte)
-    Op/En: MR (R/M is dest; REG is source)
-    Move from R to R/M 
+    Opcode: 89 /r
+    Move from R to R/M
     """
-    # Note: as with many opcodes, flipping bit 6 swaps the R->RM order
-    #       yielding 0x8B (mov_r_rm)
-    return '\x89' + mod_reg_rm('dir', r, rm)
+    return mov_r_rm(r, rm, opcode='\x89')
 
-def mov_rm64_r64(rm, r):
-    """ MOV R/M,R
+#def mov_rm32_r32(rm, r):
+    #""" MOV R/M,R
     
-    Opcode: 89 /r (uses mod_reg_r/m byte)
-    Op/En: MR (R/M is dest; REG is source)
-    Move from R to R/M 
-    """
-    # Note: as with many opcodes, flipping bit 6 swaps the R->RM order
-    #       yielding 0x8B (mov_r_rm)
-    return rex.w + '\x89' + mod_reg_rm('dir', r, rm)
+    #Opcode: 89 /r (uses mod_reg_r/m byte)
+    #Op/En: MR (R/M is dest; REG is source)
+    #Move from R to R/M 
+    #"""
+    ## Note: as with many opcodes, flipping bit 6 swaps the R->RM order
+    ##       yielding 0x8B (mov_r_rm)
+    #return '\x89' + mod_reg_rm('dir', r, rm)
 
-def mov_r32_imm32(r, val, fmt='<I'):
+#def mov_rm64_r64(rm, r):
+    #""" MOV R/M,R
+    
+    #Opcode: 89 /r (uses mod_reg_r/m byte)
+    #Op/En: MR (R/M is dest; REG is source)
+    #Move from R to R/M 
+    #"""
+    ## Note: as with many opcodes, flipping bit 6 swaps the R->RM order
+    ##       yielding 0x8B (mov_r_rm)
+    #return rex.w + '\x89' + mod_reg_rm('dir', r, rm)
+
+def mov_r_imm(r, val, fmt=None):
     """ MOV REG,VAL
     
-    Opcode: b8+r
-    Move VAL (32 bit immediate as unsigned int) to REG.
+    Opcode(32): b8+r
+    Opcode(64): REX.W + b8 + rd io
+    Move VAL (32/64 bit immediate as unsigned int) to REG.
     """
-    return chr(0xb8 | r) + struct.pack(fmt, val)
+    if r.bits == 32:
+        fmt = '<I' if fmt is None else fmt
+        return chr(0xb8 | r) + struct.pack(fmt, val)
+    elif r.bits == 64:
+        fmt = '<Q' if fmt is None else fmt
+        return rex.w + chr(0xb8 | r) + struct.pack(fmt, val)
+    else:
+        raise NotImplementedError('register bit size %d not supported' % a.bits)
 
-def mov_r64_imm64(r, val, fmt='<Q'):
-    """ MOV REG,VAL
-    
-    Opcode: REX.W + b8 + rd io
-    Move VAL (64 bit immediate as unsigned int) to 64-bit REG.
+        
+def add(dst, src):
+    """Perform integer addition of dst + src and store the result in dst.
     """
-    return rex.w + chr(0xb8 | r) + struct.pack(fmt, val)
+    dst = interpret(dst)
+    src = interpret(src)
+    
+    if isinstance(dst, EffectiveAddress):
+        if isinstance(src, Register):
+            return add_ptr_reg(dst, src)
+        elif isinstance(src, int):
+            return add_ptr_imm(dst, src)
+    elif isinstance(dst, Register):
+        if isinstance(src, Register):
+            return add_reg_reg(dst, src)
+        elif isinstance(src, EffectiveAddress):
+            return add_reg_ptr(dst, src)
+        elif isinstance(src, int):
+            return add_reg_imm(dst, src)
+
+def add_reg_imm(reg, val):
+    """ADD REG, imm32
+    
+    Opcode: REX.W 0x81 /0 id
+    """
+    return rex.w + '\x81' + mod_reg_rm('dir', 0x0, reg) + struct.pack('i', val)
+    
+def add_reg_reg(reg1, reg2):
+    """ ADD r/m64 r64
+    
+    Opcode: REX.W 0x01 /r
+    """
+    return rex.w + '\x01' + mod_reg_rm('dir', reg2, reg1)
+
+def add_reg_ptr(reg, addr):
+    pass
+
+def add_ptr_imm(addr, val):
+    pass
+    
+def add_ptr_reg(addr, reg):
+    pass
 
 def lea(r, base, offset, disp):
     """ LEA r,[base+offset+disp]
@@ -589,19 +816,23 @@ def jmp(addr):
         raise TypeError("jmp accepts Register (absolute), integer, or label (relative).")
 
 def jmp_rel(addr):
-    """JMP (relative)
+    """JMP rel32 (relative)
+    
+    Opcode: 0xe9 cd 
     """
     if isinstance(addr, str):
         code = Code('\xe9\x00\x00\x00\x00')
         code.replace(1, "%s - next_instr_addr" % addr, 'i')
         return code
     elif isinstance(addr, int):
-        return '\xe9' + struct.pack('i', addr)
+        return '\xe9' + struct.pack('i', addr - 5)
 
 def jmp_abs(reg):
-    """JMP (absolute)
+    """JMP r/m32 (absolute)
+    
+    Opcode: 0xff /4
     """
-    return '\xff' + mod_reg_rm(0b11, 0x4, reg)
+    return '\xff' + mod_reg_rm('dir', 0x4, reg)
 
 def int_(code):
     """INT code
@@ -638,7 +869,7 @@ def pbin(code):
         code = [code]
     for instr in code:
         for c in instr:
-            print format(ord(c), 'b'),
+            print format(ord(c), '08b'),
         print ''
 
 def run_as(asm):
