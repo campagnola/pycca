@@ -30,7 +30,7 @@ http://www.intel.com/content/www/us/en/processors/architectures-software-develop
 """
 
 
-
+from __future__ import division
 import ctypes
 import sys
 import os
@@ -40,6 +40,7 @@ import re
 import struct
 import subprocess
 import tempfile
+import math
 
 if sys.maxsize > 2**32:
     ARCH = 64
@@ -317,6 +318,61 @@ xmm7 = Register(0b111, 'xmm7', 16)
 
 
 
+
+#   Misc. utilities required by instructions
+#------------------------------------------------
+
+
+class Code(object):
+    """
+    Represents partially compiled machine code with a table of unresolved
+    symbol replacements.
+    
+    Code instances can be compiled to a complete machine code string once all
+    symbol values can be determined.
+    """
+    def __init__(self, code):
+        self.code = code
+        self.replacements = {}
+        
+    def replace(self, index, symbol, packing):
+        """
+        Add a new replacement starting at *index*. 
+        
+        When this Code is compiled, the value of *symbol* will be packed with
+        *packing* and written into the code at *index*.
+        """
+        self.replacements[index] = (symbol, packing)
+        
+    def __len__(self):
+        return len(self.code)
+    
+    def compile(self, symbols):
+        code = self.code
+        for i,repl in self.replacements.items():
+            symbol, packing = repl
+            val = struct.pack(packing, symbols[symbol])
+            code = code[:i] + val + code[i+len(val):]
+        return code
+
+
+def label(name):
+    """
+    Create a label referencing a location in the code.
+    
+    The name of this label may be used by other assembler calls that require
+    a code pointer.
+    """
+    return Label(name)
+
+class Label(object):
+    def __init__(self, name):
+        self.name = name
+        
+    def __len__(self):
+        return 0
+        
+
 def ptr(arg):
     """Create a memory pointer from arg. 
     
@@ -345,6 +401,31 @@ class Pointer(object):
                             "RegisterOffset.")
 
 
+def pack_int(x, int8=False, int16=True, int32=True, int64=True):
+    """Pack a signed integer into the smallest format possible.
+    """
+    modes = ['bhiq'[i] for i,m in enumerate([int8, int16, int32, int64]) if m]
+    for mode in modes:
+        try:
+            return struct.pack(mode, x)
+        except struct.error:
+            if mode == modes[-1]:
+                raise
+            # otherwise, try the next mode
+
+def pack_uint(x, uint8=False, uint16=True, uint32=True, uint64=True):
+    """Pack an unsigned integer into the smallest format possible.
+    """
+    modes = ['BHIQ'[i] for i,m in enumerate([uint8, uint16, uint32, uint64]) if m]
+    for mode in modes:
+        try:
+            return struct.pack(mode, x)
+        except struct.error:
+            if mode == modes[-1]:
+                raise
+            # otherwise, try the next mode
+
+
 
 #   Instruction definitions
 #----------------------------------------
@@ -368,6 +449,7 @@ def pop(reg):
 
 def mov(a, b):
     if isinstance(a, Register) and isinstance(b, Register):
+        # Copy register to register
         if a.bits == 32:
             return mov_rm32_r32(a, b)
         elif a.bits == 64:
@@ -375,6 +457,7 @@ def mov(a, b):
         else:
             raise NotImplementedError('register bit size %d not supported' % a.bits)
     elif isinstance(a, Register) and isinstance(b, int):
+        # Copy immediate value to register
         if a.bits == 32:
             return mov_r32_imm32(a, b)
         elif a.bits == 64:
@@ -572,36 +655,57 @@ def as_code(asm):
 
 
 
+class CodePage(object):
+    def __init__(self, asm):
+        self.labels = {}
+        self.asm = asm
+        code = self.compile(asm)
+        
+        #pagesize = os.sysconf("SC_PAGESIZE")
+        
+        # Create a memory-mapped page with execute privileges
+        PROT_NONE = 0
+        PROT_READ = 1
+        PROT_WRITE = 2
+        PROT_EXEC = 4
+        self.page = mmap.mmap(-1, len(code), prot=PROT_READ|PROT_WRITE|PROT_EXEC)
+        self.page.write(code)
+
+        # get the page address
+        buf = (ctypes.c_char * len(code)).from_buffer(self.page)
+        self.page_addr = ctypes.addressof(buf)
+
+    def get_function(self, label=None):
+        addr = self.page_addr
+        if label is not None:
+            addr += self.labels[label]
+        
+        # Turn this into a callable function
+        f = ctypes.CFUNCTYPE(None)(addr)
+        f.page = self  # Make sure page stays alive as long as function pointer!
+        return f
+
+    def compile(self, asm):
+        ptr = 0
+        # First locate all labels
+        for cmd in asm:
+            ptr += len(cmd)
+            if isinstance(cmd, Label):
+                self.labels[cmd.name] = ptr
+                
+        # now compile
+        code = ''
+        for cmd in asm:
+            if isinstance(cmd, str):
+                code += cmd
+            else:
+                code += cmd.compile(self.labels)
+                
+        return code
+        
+        
 def mkfunction(code):
-    if isinstance(code, list):
-        code = ''.join(code)
-    
-    # Get the system page size
-    pagesize = os.sysconf("SC_PAGESIZE")
-
-    # Create a memory-mapped page with execute privileges
-    PROT_NONE = 0
-    PROT_READ = 1
-    PROT_WRITE = 2
-    PROT_EXEC = 4
-    page = mmap.mmap(-1, pagesize, prot=PROT_READ|PROT_WRITE|PROT_EXEC)
-
-    # write function code to the page
-    page.seek(0)
-    page.write(code)
-    page.write('\x00')
-    
-    # get the page address
-    #buf = ctypes.c_char_p.from_buffer(page)
-    buf = (ctypes.c_char * len(code)).from_buffer(page)
-    buf_addr = ctypes.addressof(buf)
-    #print "code:"
-    #phex(buf.raw)
-    #print "addr: %x" % buf_addr
-    
-    # Turn this into a callable function
-    f = ctypes.CFUNCTYPE(None)(buf_addr)
-    f.page = page  # Make sure page stays alive as long as function pointer!
-    return f
+    page = CodePage(code)
+    return page.get_function()
 
 

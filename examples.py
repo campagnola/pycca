@@ -1,5 +1,10 @@
 from pycc.asm import *
 import user
+try:
+    import faulthandler
+    faulthandler.enable()
+except ImportError:
+    pass
 
 
 #   Example 1: Write a string to stdout
@@ -83,19 +88,38 @@ msg = ctypes.create_string_buffer("A double:\n")
     #call(rax),
     #pop(0x8),
 #])
-
 #printf()
 
-libm = ctypes.cdll.LoadLibrary('libm.so.6')
-exp = mkfunction([
-    mov(rax, 0x123),
-    push(rax),
-    mov(rbx, ctypes.addressof(libm.exp)),
-    mov(rcx, ptr(rbx))
-    call(rcx),
-    pop(0x8),
-])
+#libm = ctypes.cdll.LoadLibrary('libm.so.6')
+#exp = mkfunction([
+    #mov(rax, 0x123),
+    #push(rax),
+    #mov(rbx, ctypes.addressof(libm.exp)),
+    #mov(rcx, ptr(rbx)),
+    #call(rcx),
+    #pop(0x8),
+#])
 
-exp.restype = ctypes.c_double
-print "exp(0x128) = %f" % exp()
+#exp.restype = ctypes.c_double
+#print "exp(0x128) = %f" % exp()
+
+
+
+#   Example 5: Jump to label
+#----------------------------------------------
+
+#fn = mkfunction([
+    #label('start'),
+    #mov(rax, 0xdeadbeef),
+    #jmp('end'),
+    #mov(rax, 0x1),
+    #label('end'),
+    #ret()
+#])
+#fn.restype = ctypes.c_uint64
+
+## We get 0xdeadbeef back if the second mov was jumped over.
+#print "Return: 0x%x" % fn()
+
+
 

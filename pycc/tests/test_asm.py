@@ -1,5 +1,14 @@
 from pycc.asm import *
 
+def test_pack_int():
+    assert pack_int(0x10) == '\x10\x00'
+    assert pack_int(0x10, int8=True) == '\x10'
+    assert pack_int(0x10, int16=False) == '\x10\x00\x00\x00'
+    assert pack_int(0x1000) == '\x00\x10'
+    assert pack_int(0x100000) == '\x00\x00\x10\x00'
+    assert pack_int(0x10000000) == '\x00\x00\x00\x10'
+    assert pack_int(0x1000000000) == '\x00\x00\x00\x00\x10\x00\x00\x00'
+
 def test_mov():
     assert mov(eax, 0x1234567) == as_code('mov eax,0x1234567')
     assert mov(eax, ebx) == as_code('mov eax,ebx')
