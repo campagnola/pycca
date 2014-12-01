@@ -776,6 +776,8 @@ def add(dst, src):
             return add_ptr_reg(dst, src)
         elif isinstance(src, (int, long)):
             return add_ptr_imm(dst, src)
+        else:
+            raise TypeError('src must be Register or int if dst is Pointer')
     elif isinstance(dst, Register):
         if isinstance(src, Register):
             return add_reg_reg(dst, src)
@@ -783,6 +785,10 @@ def add(dst, src):
             return add_reg_ptr(dst, src)
         elif isinstance(src, (int, long)):
             return add_reg_imm(dst, src)
+        else:
+            raise TypeError('src must be Register, Pointer, or int')
+    else:
+        raise TypeError('dst must be Register or Pointer')
 
 def add_reg_imm(reg, val):
     """ADD REG, imm32
@@ -799,13 +805,15 @@ def add_reg_reg(reg1, reg2):
     return rex.w + '\x01' + mod_reg_rm('dir', reg2, reg1)
 
 def add_reg_ptr(reg, addr):
-    pass
+    modrm = ModRmSib(reg, addr)
+    return '\x03' + modrm.code
 
 def add_ptr_imm(addr, val):
-    pass
+    return '\x81' + addr.modrm_sib(0x0) + struct.pack('i', val)
     
 def add_ptr_reg(addr, reg):
-    pass
+    modrm = ModRmSib(reg, addr)
+    return '\x01' + modrm.code
 
 def lea(r, base, offset, disp):
     """ LEA r,[base+offset+disp]
