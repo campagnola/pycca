@@ -219,7 +219,35 @@ def mk_sib(byts, offset, base):
 #            extending reg and r/m, respectively.
 #
 
+class ModRmSib(object):
+    """Container for mod_reg_rm + sib + displacement string and related
+    information.
+    
+    The .code property is the compiled byte code
+    The .rm property is a description of the input types:
+        'rr' => both inputs are Registers
+        'rm' => a is Register, b is Pointer
+        'mr' => a is Pointer, b is Register
+    The .bits property gives the maximum bit depth of any register
+    """
+    def __init__(self, a, b):
+        self.a = a = interpret(a)
+        self.b = b = interpret(b)
+        
+        if isinstance(a, Register) and isinstance(b, Register):
+            self.code = mod_reg_rm('dir', dst, src)
+            self.rm = 'rr'
+        elif isinstance(a, Pointer) and isinstance(b, Register):
+            self.code = a.modrm_sib(b)
+            self.rm = 'mr'
+        elif isinstance(b, Pointer) and isinstance(a, Register):
+            self.code = b.modrm_sib(a)
+            self.rm = 'rm'
+        else:
+            raise TypeError('Must be called with two Registers or one Register and'
+                            ' one Pointer')
 
+        self.bits = max(a.bits, b.bits)
 
 
 #   Register definitions
@@ -248,11 +276,11 @@ class Register(int):
 
     def __add__(self, x):
         if isinstance(x, Register):
-            return EffectiveAddress(reg1=self, reg2=x)
-        elif isinstance(x, EffectiveAddress):
+            return Pointer(reg1=self, reg2=x)
+        elif isinstance(x, Pointer):
             return x.__add__(self)
         elif isinstance(x, int):
-            return EffectiveAddress(reg1=self, disp=x)
+            return Pointer(reg1=self, disp=x)
         else:
             raise TypeError("Cannot add type %s to Register." % type(x))
 
@@ -261,7 +289,7 @@ class Register(int):
 
     def __sub__(self, x):
         if isinstance(x, int):
-            return EffectiveAddress(reg1=self, disp=-x)
+            return Pointer(reg1=self, disp=-x)
         else:
             raise TypeError("Cannot subtract type %s from Register." % type(x))
 
@@ -269,7 +297,7 @@ class Register(int):
         if isinstance(x, int):
             if x not in [1, 2, 4, 8]:
                 raise ValueError("Register can only be multiplied by 1, 2, 4, or 8.")
-            return EffectiveAddress(reg1=self, scale=x)
+            return Pointer(reg1=self, scale=x)
         else:
             raise TypeError("Cannot multiply Register by type %s." % type(x))
         
@@ -277,7 +305,7 @@ class Register(int):
         return self * x
 
 
-class EffectiveAddress(object):
+class Pointer(object):
     """Representation of an effective memory address calculated as a 
     combination of values::
     
@@ -291,7 +319,20 @@ class EffectiveAddress(object):
         self.disp = disp
     
     def copy(self):
-        return EffectiveAddress(self.reg1, self.scale, self.reg2, self.disp)
+        return Pointer(self.reg1, self.scale, self.reg2, self.disp)
+    
+    @property
+    def bits(self):
+        """Maximum number of bits for any register / displacement
+        """
+        regs = []
+        if self.reg1 is not None:
+            regs.append(self.reg1.bits)
+        if self.reg2 is not None:
+            regs.append(self.reg2.bits)
+        if self.disp is not None:
+            regs.append(32)
+        return max(regs)
 
     def __add__(self, x):
         y = self.copy()
@@ -301,14 +342,14 @@ class EffectiveAddress(object):
             elif y.reg2 is None:
                 y.reg2 = x
             else:
-                raise TypeError("EffectiveAddress cannot incorporate more than"
+                raise TypeError("Pointer cannot incorporate more than"
                                 " two registers.")
         elif isinstance(x, int):
             if y.disp is None:
                 y.disp = x
             else:
                 y.disp += x
-        elif isinstance(x, EffectiveAddress):
+        elif isinstance(x, Pointer):
             if x.disp is not None:
                 y = y + x.disp
             if x.reg2 is not None:
@@ -317,11 +358,11 @@ class EffectiveAddress(object):
                 y = y + x.reg1
             elif x.reg1 is not None and x.scale is not None:
                 if y.scale is not None:
-                    raise TypeError("EffectiveAddress can only hold one scaled"
+                    raise TypeError("Pointer can only hold one scaled"
                                     " register.")
                 if y.reg1 is not None:
                     if y.reg2 is not None:
-                        raise TypeError("EffectiveAddress cannot incorporate more than"
+                        raise TypeError("Pointer cannot incorporate more than"
                                         " two registers.")
                     # move reg1 => reg2 to make room for a new reg1*scale
                     y.reg2 = y.reg1
@@ -426,23 +467,23 @@ rbp = Register(0b101, 'rbp', 64)
 rsi = Register(0b110, 'rsi', 64)
 rdi = Register(0b111, 'rdi', 64)
 
-mm0 = Register(0b000, 'mm0', 16)  # mm(/r)
-mm1 = Register(0b001, 'mm1', 16)
-mm2 = Register(0b010, 'mm2', 16)
-mm3 = Register(0b011, 'mm3', 16)
-mm4 = Register(0b100, 'mm4', 16)
-mm5 = Register(0b101, 'mm5', 16)
-mm6 = Register(0b110, 'mm6', 16)
-mm7 = Register(0b111, 'mm7', 16)
+mm0 = Register(0b000, 'mm0', 64)  # mm(/r)
+mm1 = Register(0b001, 'mm1', 64)
+mm2 = Register(0b010, 'mm2', 64)
+mm3 = Register(0b011, 'mm3', 64)
+mm4 = Register(0b100, 'mm4', 64)
+mm5 = Register(0b101, 'mm5', 64)
+mm6 = Register(0b110, 'mm6', 64)
+mm7 = Register(0b111, 'mm7', 64)
 
-xmm0 = Register(0b000, 'xmm0', 16)  # xmm(/r)
-xmm1 = Register(0b001, 'xmm1', 16)
-xmm2 = Register(0b010, 'xmm2', 16)
-xmm3 = Register(0b011, 'xmm3', 16)
-xmm4 = Register(0b100, 'xmm4', 16)
-xmm5 = Register(0b101, 'xmm5', 16)
-xmm6 = Register(0b110, 'xmm6', 16)
-xmm7 = Register(0b111, 'xmm7', 16)
+xmm0 = Register(0b000, 'xmm0', 128)  # xmm(/r)
+xmm1 = Register(0b001, 'xmm1', 128)
+xmm2 = Register(0b010, 'xmm2', 128)
+xmm3 = Register(0b011, 'xmm3', 128)
+xmm4 = Register(0b100, 'xmm4', 128)
+xmm5 = Register(0b101, 'xmm5', 128)
+xmm6 = Register(0b110, 'xmm6', 128)
+xmm7 = Register(0b111, 'xmm7', 128)
 
 
 
@@ -562,7 +603,7 @@ def pack_uint(x, uint8=False, uint16=True, uint32=True, uint64=True):
 def interpret(arg):
     """General function for interpreting instruction arguments.
     
-    This converts list arguments to EffectiveAddress, allowing syntax like::
+    This converts list arguments to Pointer, allowing syntax like::
     
         mov(rax, [0x1000])  # 0x1000 is a memory address
         mov(rax, 0x1000)    # 0x1000 is an immediate value
@@ -571,14 +612,14 @@ def interpret(arg):
         assert len(arg) == 1
         arg = arg[0]
         if isinstance(arg, Register):
-            return EffectiveAddress(reg1=arg)
+            return Pointer(reg1=arg)
         elif isinstance(arg, int):
-            return EffectiveAddress(disp=arg)
-        elif isinstance(arg, EffectiveAddress):
+            return Pointer(disp=arg)
+        elif isinstance(arg, Pointer):
             return arg
         else:
             raise TypeError("List arguments may only contain a single int, "
-                            "Register, or EffectiveAddress.")
+                            "Register, or Pointer.")
     else:
         return arg
 
@@ -612,27 +653,27 @@ def mov(a, b):
         if isinstance(b, Register):
             # Copy register to register
             return mov_rm_r(a, b)
-        elif isinstance(b, int):
+        elif isinstance(b, (int, long)):
             # Copy immediate value to register
             return mov_r_imm(a, b)
-        elif isinstance(b, EffectiveAddress):
+        elif isinstance(b, Pointer):
             # Copy memory to register
             return mov_r_rm(a, b)
         else:
             raise TypeError("mov second argument must be Register, immediate, "
-                            "or EffectiveAddress")
-    elif isinstance(a, EffectiveAddress):
+                            "or Pointer")
+    elif isinstance(a, Pointer):
         if isinstance(b, Register):
             # Copy register to memory
             return mov_rm_r(a, b)
-        elif isinstance(b, int):
+        elif isinstance(b, (int, long)):
             # Copy immediate value to memory
             raise NotImplementedError("mov imm=>addr not implemented")
         else:
             raise TypeError("mov second argument must be Register or immediate"
-                            " when first argument is EffectiveAddress")
+                            " when first argument is Pointer")
     else:
-        raise TypeError("mov first argument must be Register or EffectiveAddress")
+        raise TypeError("mov first argument must be Register or Pointer")
 
 def mov_r_rm(r, rm, opcode='\x8b'):
     """ MOV R,R/M
@@ -647,13 +688,13 @@ def mov_r_rm(r, rm, opcode='\x8b'):
     if r.bits == 64:
         inst += rex.w
     elif r.bits != 32:
-        raise NotImplementedError('register bit size %d not supported' % a.bits)
+        raise NotImplementedError('register bit size %d not supported' % r.bits)
     inst += opcode
     
     if isinstance(rm, Register):
         # direct register-register copy
         inst += mod_reg_rm('dir', r, rm)
-    elif isinstance(rm, EffectiveAddress):
+    elif isinstance(rm, Pointer):
         # memory to register copy
         inst += rm.modrm_sib(r)
         
@@ -705,6 +746,24 @@ def mov_r_imm(r, val, fmt=None):
     else:
         raise NotImplementedError('register bit size %d not supported' % r.bits)
 
+def movsd(dst, src):
+    """
+    MOVSD xmm1, xmm2/m64
+    Opcode (mem=>xmm): f2 0f 10 /r
+    
+    MOVSD xmm2/m64, xmm1
+    Opcode (xmm=>mem): f2 0f 11 /r
+    
+    Move scalar double-precision float
+    """
+    modrm = ModRmSib(dst, src)
+    if modrm.rm in ('rr', 'rm'):
+        assert dst.bits == 128
+        return '\xf2\x0f\x10' + modrm.code
+    else:
+        assert src.bits == 128
+        return '\xf2\x0f\x11' + modrm.code
+        
         
 def add(dst, src):
     """Perform integer addition of dst + src and store the result in dst.
@@ -712,17 +771,17 @@ def add(dst, src):
     dst = interpret(dst)
     src = interpret(src)
     
-    if isinstance(dst, EffectiveAddress):
+    if isinstance(dst, Pointer):
         if isinstance(src, Register):
             return add_ptr_reg(dst, src)
-        elif isinstance(src, int):
+        elif isinstance(src, (int, long)):
             return add_ptr_imm(dst, src)
     elif isinstance(dst, Register):
         if isinstance(src, Register):
             return add_reg_reg(dst, src)
-        elif isinstance(src, EffectiveAddress):
+        elif isinstance(src, Pointer):
             return add_reg_ptr(dst, src)
-        elif isinstance(src, int):
+        elif isinstance(src, (int, long)):
             return add_reg_imm(dst, src)
 
 def add_reg_imm(reg, val):

@@ -45,6 +45,10 @@ def test_mov():
     assert mov(rax, [8*rbx+rcx]) == as_code('mov rax, qword ptr [8*rbx+rcx]')
     assert mov(rax, [0x1000+8*rbx+rcx]) == as_code('mov rax, qword ptr 0x1000[8*rbx+rcx]')
     
+def test_movsd():
+    assert movsd(xmm1, [rax+rbx*4+0x1000]) == as_code('movsd xmm1, qword ptr [rax+rbx*4+0x1000]')
+    assert movsd([rax+rbx*4+0x1000], xmm1) == as_code('movsd qword ptr [rax+rbx*4+0x1000], xmm1')
+    
 def test_int():
     assert int_(0x80) == as_code('int 0x80')
 

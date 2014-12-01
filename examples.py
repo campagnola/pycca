@@ -1,5 +1,9 @@
-from pycc.asm import *
+import ctypes
+import numpy as np
 import user
+
+from pycc.asm import *
+
 try:
     import faulthandler
     faulthandler.enable()
@@ -75,42 +79,35 @@ print "Return: 0x%x" % fn()
 
 #   Example 4: Call an external function
 #------------------------------------------------------
-import ctypes
-msg = ctypes.create_string_buffer("A double:\n")
 
-## Why do these segv??
-
-libc = ctypes.cdll.LoadLibrary('libc.so.6')
-printf = mkfunction([
-    mov(rax, ctypes.addressof(msg)),
-    push(rax),
-    mov(rax, ctypes.addressof(libc.printf)),
-    call(rax),
-    pop(0x8),
-])
-#printf()
 
 libm = ctypes.cdll.LoadLibrary('libm.so.6')
-# dereference function pointer
+# look up math.exp() from C standard lib, dereference function pointer
 fp = (ctypes.c_char*8).from_address(ctypes.addressof(libm.exp))
 fp = struct.unpack('Q', fp[:8])[0]
+
+# prepare input operand
+op = 3.1415
+xop = struct.unpack('q', struct.pack('d', op))[0]
 
 exp = mkfunction([
     push(rbp),
     mov(rbp, rsp),
-    add(rsp, -0x30),
-    mov(xmm0, 0x123),
+    add(rsp, -0x10),          # increase stack depth
+    mov(rax, xop),            # place operand in rx => stack => xmm0
+    mov([rbp-0x10], rax),
+    movsd(xmm0, [rbp-0x10]),  
     mov(rbx, fp),
-    call(rbx),
-    mov(rax, rbp-0x28),
+    call(rbx),                # call exp()
+    movsd([rbp-0x10], xmm0),  # copy result from xmm0 back to rax
+    mov(rax, [rbp-0x10]),
     leave(),
     ret(),
 ])
 
 exp.restype = ctypes.c_double
-print "exp(0x128) = %f" % exp()
-
-
+out = exp()
+print "exp(%f) = %f =? %f" % (op, out, np.exp(op))
 
 
 
