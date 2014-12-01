@@ -75,6 +75,8 @@ def test_add():
     assert add(rbx, 0x1000) == as_code('add rbx, 0x1000')
     assert add([0x1000], eax) == as_code('add dword ptr [0x1000], eax')
     assert add(eax, [0x1000]) == as_code('add eax, dword ptr [0x1000]')
+    #assert add([0x1000], rax) == as_code('add qword ptr [0x1000], rax')
+    #assert add(rax, [0x1000]) == as_code('add rax, qword ptr [0x1000]')
     assert add([0x1000], 0x1000) == as_code('add dword ptr [0x1000], 0x1000')
     
 def test_cmp():
@@ -83,6 +85,12 @@ def test_cmp():
 def test_dec():
     assert dec([0x1000]) == as_code('dec dword ptr [0x1000]')
     assert dec(eax) == as_code('dec eax')
+    assert dec(rax) == as_code('dec rax')
+
+def test_inc():
+    assert inc([0x1000]) == as_code('inc dword ptr [0x1000]')
+    assert inc(eax) == as_code('inc eax')
+    assert inc(rax) == as_code('inc rax')
 
 def test_jmp():
     assert jmp(rax) == as_code('jmp rax')
