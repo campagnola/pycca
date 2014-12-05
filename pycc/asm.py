@@ -224,30 +224,43 @@ class ModRmSib(object):
     information.
     
     The .code property is the compiled byte code
-    The .rm property is a description of the input types:
+    The .argtypes property is a description of the input types:
         'rr' => both inputs are Registers
         'rm' => a is Register, b is Pointer
         'mr' => a is Pointer, b is Register
+        'xr' => a is opcode extension, b is register 
+        'xp' => a is opcode extension, b is Pointer 
     The .bits property gives the maximum bit depth of any register
     """
     def __init__(self, a, b):
         self.a = a = interpret(a)
         self.b = b = interpret(b)
         
-        if isinstance(a, Register) and isinstance(b, Register):
-            self.code = mod_reg_rm('dir', dst, src)
-            self.rm = 'rr'
-        elif isinstance(a, Pointer) and isinstance(b, Register):
+        self.argtypes = ''
+        for op in (a, b):
+            if isinstance(op, Register):
+                self.argtypes += 'r'
+            elif isinstance(op, int) and op < 8:
+                self.argtypes += 'x'
+            elif isinstance(op, Pointer):
+                self.argtypes += 'm'
+            else:
+                raise Exception("Arguments must be Register, Pointer, or "
+                                "opcode extension.")
+        
+        if self.argtypes in ('rr', 'xr'):
+            self.code = mod_reg_rm('dir', a, b)
+        elif self.argtypes == 'mr':
             self.code = a.modrm_sib(b)
-            self.rm = 'mr'
-        elif isinstance(b, Pointer) and isinstance(a, Register):
+        elif self.argtypes in ('rm', 'xm'):
             self.code = b.modrm_sib(a)
-            self.rm = 'rm'
         else:
-            raise TypeError('Must be called with two Registers or one Register and'
-                            ' one Pointer')
+            raise TypeError('Invalid argument types: %s, %s' % (type(a), type(b)))
 
-        self.bits = max(a.bits, b.bits)
+        if hasattr(a, 'bits'):
+            self.bits = max(a.bits, b.bits)
+        else:
+            self.bits = b.bits
 
 
 #   Register definitions
@@ -757,7 +770,7 @@ def movsd(dst, src):
     Move scalar double-precision float
     """
     modrm = ModRmSib(dst, src)
-    if modrm.rm in ('rr', 'rm'):
+    if modrm.argtypes in ('rr', 'rm'):
         assert dst.bits == 128
         return '\xf2\x0f\x10' + modrm.code
     else:
@@ -815,31 +828,94 @@ def add_ptr_reg(addr, reg):
     modrm = ModRmSib(reg, addr)
     return '\x01' + modrm.code
 
-def lea(r, base, offset, disp):
+def lea(a, b):
     """ LEA r,[base+offset+disp]
     
+    Load effective address.
     Opcode: 8d /r (uses mod_reg_r/m byte)
     Op/En: RM (REG is dest; R/M is source)
-    Load effective address.
     """
-    return '\x8d' + mod_reg_rm('ind8', r, sib) + mk_sib(1, offset, base) + chr(disp)
+    modrm = ModRmSib(a, b)
+    return '\x8d' + modrm.code
+    #return '\x8d' + mod_reg_rm('ind8', r, sib) + mk_sib(1, offset, base) + chr(disp)
+    
 
-def ret():
+def dec(op):
+    """ DEC r/m
+    
+    Decrement r/m by 1
+    Opcode: ff /1
+    """
+    modrm = ModRmSib(0x1, op)
+    if modrm.bits == 64:
+        return rex.w + '\xff' + modrm.code
+    else:
+        return '\xff' + modrm.code
+
+def inc(op):
+    """ INC r/m
+    
+    Increment r/m by 1
+    Opcode: ff /0
+    """
+    modrm = ModRmSib(0x0, op)
+    if modrm.bits == 64:
+        return rex.w + '\xff' + modrm.code
+    else:
+        return '\xff' + modrm.code
+
+def imul(a, b):
+    """ IMUL reg, r/m
+    
+    Signed integer multiply reg * r/m and store in reg
+    Opcode: 0f af /r
+    """
+    modrm = ModRmSib(a, b)
+    if modrm.bits == 64:
+        return rex.w + '\x0f\xaf' + modrm.code
+    else:
+        return '\x0f\xaf' + modrm.code
+
+def idiv(op):
+    """ IDIV r/m
+    
+    Signed integer divide *ax / r/m and store in *ax
+    Opcode: f7 /7
+    """
+    modrm = ModRmSib(0x7, op)
+    if modrm.bits == 64:
+        return rex.w + '\xf7' + modrm.code
+    else:
+        return '\xf7' + modrm.code
+
+
+def ret(pop=0):
     """ RET
     
-    Return.
+    Return; pop a value from the stack and branch to that address.
+    Optionally, extra values may be popped from the stack after the return 
+    address.
     """
-    return '\xc3'
+    if pop > 0:
+        return '\xc2' + struct.pack('<h', pop)
+    else:
+        return '\xc3'
 
 def leave():
     """ LEAVE
     
     High-level procedure exit.
+    Equivalent to::
+    
+       mov(esp, ebp)
+       pop(ebp)
     """
     return '\xc9'
 
 def call(op):
     """CALL op
+    
+    Push EIP onto stack and branch to address specified in *op*.
     
     If op is a signed int (16 or 32 bits), this generates a near, relative call
     where the displacement given in op is relative to the next instruction.

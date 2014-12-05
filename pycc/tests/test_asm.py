@@ -31,6 +31,9 @@ def test_pack_int():
     assert pack_int(0x1000000000) == '\x00\x00\x00\x00\x10\x00\x00\x00'
 
 
+
+# Move instructions
+
 def test_mov():
     assert mov(eax, 0x1234567) == as_code('mov eax,0x1234567')
     assert mov(eax, ebx) == as_code('mov eax,ebx')
@@ -48,9 +51,9 @@ def test_mov():
 def test_movsd():
     assert movsd(xmm1, [rax+rbx*4+0x1000]) == as_code('movsd xmm1, qword ptr [rax+rbx*4+0x1000]')
     assert movsd([rax+rbx*4+0x1000], xmm1) == as_code('movsd qword ptr [rax+rbx*4+0x1000], xmm1')
-    
-def test_int():
-    assert int_(0x80) == as_code('int 0x80')
+
+
+# Procedure management instructions
 
 def test_push():
     assert push(rbp) == as_code('pushq rbp')
@@ -70,6 +73,9 @@ def test_call():
     assert call(rax) == as_code('call rax')
     assert call(rbx) == as_code('call rbx')
 
+
+# Arithmetic instructions
+
 def test_add():
     assert add(rax, rbx) == as_code('add rax, rbx')
     assert add(rbx, 0x1000) == as_code('add rbx, 0x1000')
@@ -78,9 +84,6 @@ def test_add():
     #assert add([0x1000], rax) == as_code('add qword ptr [0x1000], rax')
     #assert add(rax, [0x1000]) == as_code('add rax, qword ptr [0x1000]')
     assert add([0x1000], 0x1000) == as_code('add dword ptr [0x1000], 0x1000')
-    
-def test_cmp():
-    assert cmp([0x1000], 0) == as_code('cmp dword ptr [0x1000], 0')
     
 def test_dec():
     assert dec([0x1000]) == as_code('dec dword ptr [0x1000]')
@@ -92,6 +95,27 @@ def test_inc():
     assert inc(eax) == as_code('inc eax')
     assert inc(rax) == as_code('inc rax')
 
+def test_imul():
+    assert imul(eax, ebp) == as_code('imul eax, ebp')
+    
+def test_idiv():
+    assert idiv(ebp) == as_code('idiv ebp')
+
+def test_lea():
+    assert lea(rax, [rbp+rcx*2+0x100]) == as_code('lea rax, [rbp+rcx*2+0x100]')
+
+
+# Testing instructions
+
+def test_cmp():
+    assert cmp([0x1000], 0) == as_code('cmp dword ptr [0x1000], 0')
+
+def test_test():
+    assert test(eax, eax) == as_code('test eax,eax')
+
+
+# Branching instructions
+
 def test_jmp():
     assert jmp(rax) == as_code('jmp rax')
     assert jmp(0x1000) == as_code('jmp .+0x1000')    
@@ -102,8 +126,12 @@ def test_je():
 def test_jne():
     assert jne([0x1000]) == as_code('jne 0x1000')
 
-def test_test():
-    assert test(eax, eax) == as_code('test eax,eax')
+
+# OS instructions
 
 def test_syscall():
     assert syscall() == as_code('syscall')
+
+def test_int():
+    assert int_(0x80) == as_code('int 0x80')
+

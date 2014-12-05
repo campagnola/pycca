@@ -61,25 +61,35 @@ print "Return: 0x%x" % fn()
 #   Example 3: Pass arguments to function
 #------------------------------------------------------
 
-#
-# Function calls:
-#
-# 1. Push function arguments onto stack
-#       push eax
-#       push ebx
-# 2. Call relative address of function
-#       call dword ptr [102]
-# 3. From function, read args by accessing esp + offset
-# 4. Set return value to eax
-#       mov eax, 456
-# 5. Return, pop correct number of argument bytes from stack
-#       ret 8
+# There are a few different calling conventions we might want to support..
+# This example uses the System V AMD64 convention (used by most *nixes)
+# and the Microsoft x64 convention.
+# See: http://en.wikipedia.org/wiki/X86_calling_conventions
+
+if sys.platform == 'win32':
+    args = [rcx, rdx] #, r8, r9]
+else:
+    args = [rdi, rsi, rdx, rcx] #, r8, r9]
+fn = mkfunction([
+    # copy 8 bytes from arg2 to arg 1
+    # (both args are pointers to char*)
+    mov(rax, [args[1]]),
+    mov([args[0]], rax),
+    ret(),
+])
+fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+msg1 = ctypes.create_string_buffer("original original")
+msg2 = ctypes.create_string_buffer("modified modified")
+fn(msg1, msg2)
+print 'Modified string: "%s"' % msg1.value
 
 
 
 #   Example 4: Call an external function
 #------------------------------------------------------
 
+# Again we need to worry about calling conventions here.
+# Most common 64-bit conventions pass the first float arg in xmm0
 
 libm = ctypes.cdll.LoadLibrary('libm.so.6')
 # look up math.exp() from C standard lib, dereference function pointer
@@ -103,6 +113,18 @@ exp = mkfunction([
     mov(rax, [rbp-0x10]),
     leave(),
     ret(),
+    
+    # For some reason this version segfaults..
+    #add(rsp, -0x18),     # increase stack depth
+    #mov(rax, xop),       # place operand in xmm0
+    #mov([rsp], rax),
+    #movsd(xmm0, [rsp]),
+    #mov(rax, fp),        # set branch pointer
+    #call(rax),           # call exp()
+    #movsd([rsp], xmm0),  # copy result from xmm0 back to rax
+    #mov(rax, [rsp]),
+    #add(rsp, 0x18),      # decrease stack depth
+    #ret(),
 ])
 
 exp.restype = ctypes.c_double
