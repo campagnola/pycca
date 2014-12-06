@@ -230,6 +230,7 @@ class ModRmSib(object):
         'mr' => a is Pointer, b is Register
         'xr' => a is opcode extension, b is register 
         'xp' => a is opcode extension, b is Pointer 
+    The .argbits property is a tuple (a.bits, b.bits)
     The .bits property gives the maximum bit depth of any register
     """
     def __init__(self, a, b):
@@ -258,9 +259,23 @@ class ModRmSib(object):
             raise TypeError('Invalid argument types: %s, %s' % (type(a), type(b)))
 
         if hasattr(a, 'bits'):
-            self.bits = max(a.bits, b.bits)
+            self.argbits = (a.bits, b.bits)
+            self.bits = max(self.argbits)
         else:
+            self.argbits = (None, b.bits)
             self.bits = b.bits
+
+
+def instruction(opcode, dest=None, source=None):
+    """Automatically generate complete instructions.
+    
+    opcode: the base opcode or a dictionary of {argtypes: opcode} pairs to 
+    select from bassed on the source and dest arg types. May also be a tuple
+    (opcode, extension) or a dictionary of tuples.
+    """
+    
+    
+
 
 
 #   Register definitions
@@ -418,22 +433,27 @@ class Pointer(object):
                     #struct.pack('i', self.disp))
             
         # for all other options, use SIB normally
-        if self.disp is None:
-            mod = 'ind'
-        else:
-            mod = 'ind32'
         
         byts = {None:0, 1:0, 2:1, 4:2, 8:3}[self.scale]
         offset = esp if self.reg1 is None else self.reg1
-        base = ebp if self.reg2 is None else self.reg2
+        base = self.reg2
+        
+        if offset is esp and byts > 0:
+            raise TypeError("Invalid base/index expression: esp*%d" % (2**byts))
         
         if self.disp is not None:
+            mod = 'ind32'
             disp = struct.pack('i', self.disp)
-            if base == ebp:
-                mod = 'ind'  # don't need ind32 if SIB indicates disp32 usage
-        elif base == ebp:
+            if base is None:
+                mod = 'ind'   # sib suggests disp32 instead of mod
+                base = ebp 
+                
+        elif base in (ebp, None):
+            mod = 'ind'
+            base = ebp
             disp = struct.pack('i', 0)
         else:
+            mod = 'ind'
             disp = ''
             
         modrm_byte = mod_reg_rm(mod, reg, 'sib')
@@ -836,7 +856,18 @@ def lea(a, b):
     Op/En: RM (REG is dest; R/M is source)
     """
     modrm = ModRmSib(a, b)
-    return '\x8d' + modrm.code
+    assert modrm.argtypes == 'rm'
+    prefix = ''
+    if ARCH == 64:
+        if modrm.argbits[0] == 16:
+            prefix += '\x66'
+        if modrm.argbits[1] == 32:
+            prefix += '\x67'
+        if modrm.argbits[0] == 64:
+            prefix += rex.w
+    else:
+        raise NotImplementedError("lea only implemented for 64bit")
+    return prefix + '\x8d' + modrm.code
     #return '\x8d' + mod_reg_rm('ind8', r, sib) + mk_sib(1, offset, base) + chr(disp)
     
 

@@ -1,3 +1,4 @@
+from pytest import raises
 from pycc.asm import *
     
 
@@ -20,6 +21,15 @@ def test_effective_address():
     assert (0x1000 + rcx).modrm_sib(rdx) == as_code('mov rdx, qword ptr [0x1000 + rcx]')[2:]
     assert (0x1000 + 2*rcx).modrm_sib(rdx) == as_code('mov rdx, qword ptr [0x1000 + 2*rcx]')[2:]
 
+    # test using rbp as the SIB base
+    assert (rbp + 4*rcx + 0x1000).modrm_sib(rdx) == as_code('mov rdx, qword ptr [rbp + 4*rcx + 0x1000]')[2:]
+    
+    # test using esp as the SIB offset
+    with raises(TypeError):
+        (rbx + 4*esp + 0x1000).modrm_sib(rdx)
+    with raises(TypeError):
+        (4*esp + 0x1000).modrm_sib(rdx)
+    
 
 def test_pack_int():
     assert pack_int(0x10) == '\x10\x00'
@@ -102,7 +112,10 @@ def test_idiv():
     assert idiv(ebp) == as_code('idiv ebp')
 
 def test_lea():
-    assert lea(rax, [rbp+rcx*2+0x100]) == as_code('lea rax, [rbp+rcx*2+0x100]')
+    assert lea(rax, [rbx+rcx*2+0x100]) == as_code('lea rax, [rbx+rcx*2+0x100]')
+    assert lea(rax, [ebx+ecx*2+0x100]) == as_code('lea rax, [ebx+ecx*2+0x100]')
+    assert lea(eax, [rbx+rcx*2+0x100]) == as_code('lea eax, [rbx+rcx*2+0x100]')
+    assert lea(eax, [ebx+ecx*2+0x100]) == as_code('lea eax, [ebx+ecx*2+0x100]')
 
 
 # Testing instructions
