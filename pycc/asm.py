@@ -579,6 +579,19 @@ xmm6 = Register(0b110, 'xmm6', 128)
 xmm7 = Register(0b111, 'xmm7', 128)
 
 
+# Lists of registers used as arguments in standard calling conventions
+if ARCH == 32:
+    # 32-bit stdcall and cdecl push all arguments onto stack
+    argi = []
+    argf = []
+elif ARCH == 64:
+    if sys.platform == 'win32':
+        argi = [rcx, rdx, r8, r9]
+        argf = [xmm0, xmm1, xmm2, xmm3]
+    else:
+        argi = [rdi, rsi, rdx, rcx, r8, r9]
+        argf = [xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7]
+        
 
 
 #   Misc. utilities required by instructions
@@ -777,7 +790,7 @@ def call_rel(addr):
           5 byte instruction).
     """
     # Note: there is no 64-bit relative call.
-    return '\xe8' + struct.pack('i', addr)
+    return '\xe8' + struct.pack('i', addr-5)
 
 
 

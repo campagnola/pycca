@@ -66,15 +66,11 @@ print "Return: 0x%x" % fn()
 # and the Microsoft x64 convention.
 # See: http://en.wikipedia.org/wiki/X86_calling_conventions
 
-if sys.platform == 'win32':
-    args = [rcx, rdx] #, r8, r9]
-else:
-    args = [rdi, rsi, rdx, rcx] #, r8, r9]
 fn = mkfunction([
     # copy 8 bytes from arg2 to arg 1
     # (both args are pointers to char*)
-    mov(rax, [args[1]]),
-    mov([args[0]], rax),
+    mov(rax, [argi[1]]),
+    mov([argi[0]], rax),
     ret(),
 ])
 fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
@@ -198,18 +194,13 @@ print "Iterate to 10:", fn()
 #   Example 7: a useful function!
 #------------------------------------------------------
 
-if sys.platform == 'win32':
-    args = [rcx, rdx] #, r8, r9]
-else:
-    args = [rdi, rsi, rdx, rcx] #, r8, r9]
-
 find_first = mkfunction([
     mov(rax, 0),
     label('start_for'),
-    cmp([args[0]+rax*8], 0),
+    cmp([argi[0]+rax*8], 0),
     jge('break_for'),
     inc(rax),
-    cmp(rax, args[1]),
+    cmp(rax, argi[1]),
     jge('break_for'),
     jmp('start_for'),
     label('break_for'),

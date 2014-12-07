@@ -8,7 +8,10 @@ def test_func_return():
     assert fn() == 0xdeadbeef
 
 def test_func_args():
-    fn = mkfunction(mov(rbx,rsp) + add(rbx,8) + mov(rax,ptr(rax)) + ret(8))
+    fn = mkfunction([
+        mov(rax, argi[0]),
+        ret()
+    ])
     fn.restype = ctypes.c_uint64
     fn.argtypes = [ctypes.c_uint64]
     assert fn(0xdeadbeef) == 0xdeadbeef

@@ -78,10 +78,11 @@ def test_ret():
     #assert ret(4) == as_code('ret 4')
 
 def test_call():
+    # relative calls
     assert call(0x0) == as_code('call .+0x0') #'\xe8\x00\x10\x00\x00'  # how to specify these in
     assert call(-0x1000) == as_code('call .-0x1000') #'\xe8\x00\xf0\xff\xff' # assembler??
+    # absolute calls
     assert call(rax) == as_code('call rax')
-    assert call(rbx) == as_code('call rbx')
 
 
 # Arithmetic instructions
