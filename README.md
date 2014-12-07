@@ -29,7 +29,7 @@ into the running process memory.
 Status
 ------
 
-Pre-pre alpha:
+Alpha:
 
 * Can load executable machine code into memory pages on linux (and probably osx)
   and call this executable code via ctypes.
