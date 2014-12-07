@@ -524,6 +524,42 @@ rbp = Register(0b101, 'rbp', 64)
 rsi = Register(0b110, 'rsi', 64)
 rdi = Register(0b111, 'rdi', 64)
 
+r8b  = Register(0b1000, 'r8b',  8)  # 64-bit registers, lower byte
+r9b  = Register(0b1001, 'r9b',  8)
+r10b = Register(0b1010, 'r10b', 8)
+r11b = Register(0b1011, 'r11b', 8)
+r12b = Register(0b1100, 'r12b', 8)
+r13b = Register(0b1101, 'r13b', 8)
+r14b = Register(0b1110, 'r14b', 8)
+r15b = Register(0b1111, 'r15b', 8)
+
+r8w  = Register(0b1000, 'r8w',  16)  # 64-bit registers, lower word
+r9w  = Register(0b1001, 'r9w',  16)
+r10w = Register(0b1010, 'r10w', 16)
+r11w = Register(0b1011, 'r11w', 16)
+r12w = Register(0b1100, 'r12w', 16)
+r13w = Register(0b1101, 'r13w', 16)
+r14w = Register(0b1110, 'r14w', 16)
+r15w = Register(0b1111, 'r15w', 16)
+
+r8d  = Register(0b1000, 'r8d',  32)  # 64-bit registers, lower doubleword
+r9d  = Register(0b1001, 'r9d',  32)
+r10d = Register(0b1010, 'r10d', 32)
+r11d = Register(0b1011, 'r11d', 32)
+r12d = Register(0b1100, 'r12d', 32)
+r13d = Register(0b1101, 'r13d', 32)
+r14d = Register(0b1110, 'r14d', 32)
+r15d = Register(0b1111, 'r15d', 32)
+
+r8  = Register(0b1000, 'r8',  64)
+r9  = Register(0b1001, 'r9',  64)
+r10 = Register(0b1010, 'r10', 64)
+r11 = Register(0b1011, 'r11', 64)
+r12 = Register(0b1100, 'r12', 64)
+r13 = Register(0b1101, 'r13', 64)
+r14 = Register(0b1110, 'r14', 64)
+r15 = Register(0b1111, 'r15', 64)
+
 mm0 = Register(0b000, 'mm0', 64)  # mm(/r)
 mm1 = Register(0b001, 'mm1', 64)
 mm2 = Register(0b010, 'mm2', 64)

@@ -46,7 +46,11 @@ Todo
    * Documentation on how to add new instruction support based on intel reference, 
      how to add new unit tests
 
+* Support for r8-r15
+
 * Add more floating point instructions
+
+* Add SSE, AVX instructions
 
 * Better 32-bit arch support
 

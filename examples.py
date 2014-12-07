@@ -203,7 +203,6 @@ if sys.platform == 'win32':
 else:
     args = [rdi, rsi, rdx, rcx] #, r8, r9]
 
-
 find_first = mkfunction([
     mov(rax, 0),
     label('start_for'),
