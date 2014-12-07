@@ -1,3 +1,4 @@
+# -'- coding: utf-8 -'-
 """
 
 Self-modifying programs
@@ -345,6 +346,7 @@ class Pointer(object):
         self.scale = scale
         self.reg2 = reg2
         self.disp = disp
+        self._bits = None
     
     def copy(self):
         return Pointer(self.reg1, self.scale, self.reg2, self.disp)
@@ -353,14 +355,21 @@ class Pointer(object):
     def bits(self):
         """Maximum number of bits for any register / displacement
         """
-        regs = []
-        if self.reg1 is not None:
-            regs.append(self.reg1.bits)
-        if self.reg2 is not None:
-            regs.append(self.reg2.bits)
-        if self.disp is not None:
-            regs.append(32)
-        return max(regs)
+        if self._bits is None:
+            regs = []
+            if self.reg1 is not None:
+                regs.append(self.reg1.bits)
+            if self.reg2 is not None:
+                regs.append(self.reg2.bits)
+            if self.disp is not None:
+                regs.append(32)
+            return max(regs)
+        else:
+            return self._bits
+        
+    @bits.setter
+    def bits(self, b):
+        self._bits = b
 
     def __add__(self, x):
         y = self.copy()
@@ -460,7 +469,22 @@ class Pointer(object):
         sib_byte = mk_sib(byts, offset, base)
         return modrm_byte + sib_byte + disp
         
-        
+
+def qword(ptr):
+    if not isinstance(ptr, Pointer):
+        if not isinstance(ptr, list):
+            ptr = [ptr]
+        ptr = interpret(ptr)
+    ptr.bits = 64
+    return ptr
+
+def dword(ptr):
+    if not isinstance(ptr, Pointer):
+        if not isinstance(ptr, list):
+            ptr = [ptr]
+        ptr = interpret(ptr)
+    ptr.bits = 32
+    return ptr
         
 
 # note: see codeproject link for more comprehensive set of x86-64 registers
@@ -580,33 +604,6 @@ class Label(object):
         return ''
 
 
-#def ptr(arg):
-    #"""Create a memory pointer from arg. 
-    
-    #This causes arguments to many instructions to be interpreted differently.
-    #For example::
-    
-        #mov(eax, 0x1234)       # Copy the value 0x1234 to register eax.
-        #mov(eax, ptr(0x1234))  # Copy the value at memory location 0x1234 to
-                               ## register eax.
-        #mov(ptr(eax), ebx)     # Copy the value in ebx to the memory location
-                               ## stored in eax.
-    #"""
-    #return Pointer(arg)
-
-#class Pointer(object):
-    #def __init__(self, arg):
-        #self.arg = arg
-        #if isinstance(arg, Register):
-            #self.mode = 'reg'
-        #elif isinstance(arg, int):
-            #self.mode = 'int'
-        #elif isinstance(arg, RegisterOffset):
-            #self.mode = 'reg_off'
-        #else:
-            #raise TypeError("Can only create Pointer for int, Register, or "
-                            #"RegisterOffset.")
-
 
 def pack_int(x, int8=False, int16=True, int32=True, int64=True):
     """Pack a signed integer into the smallest format possible.
@@ -658,7 +655,7 @@ def interpret(arg):
 
 
 
-#   Instruction definitions
+#   Procedure management instructions
 #----------------------------------------
 
 
@@ -677,6 +674,79 @@ def pop(reg):
     Push value stored in reg onto the stack.
     """
     return chr(0x58 | reg)
+
+def ret(pop=0):
+    """ RET
+    
+    Return; pop a value from the stack and branch to that address.
+    Optionally, extra values may be popped from the stack after the return 
+    address.
+    """
+    if pop > 0:
+        return '\xc2' + struct.pack('<h', pop)
+    else:
+        return '\xc3'
+
+def leave():
+    """ LEAVE
+    
+    High-level procedure exit.
+    Equivalent to::
+    
+       mov(esp, ebp)
+       pop(ebp)
+    """
+    return '\xc9'
+
+def call(op):
+    """CALL op
+    
+    Push EIP onto stack and branch to address specified in *op*.
+    
+    If op is a signed int (16 or 32 bits), this generates a near, relative call
+    where the displacement given in op is relative to the next instruction.
+    
+    If op is a Register then this generates a near, absolute call where the 
+    absolute offset is read from the register.
+    """
+    if isinstance(op, Register):
+        return call_abs(op)
+    elif isinstance(op, int):
+        return call_rel(op)
+    else:
+        raise TypeError("call argument must be int or Register")
+
+def call_abs(reg):
+    """CALL (absolute) 
+    
+    Opcode: 0xff /2
+    
+    """
+    # note: opcode extension 2 is encoded in bits 3-5 of the next byte
+    #       (this is the reg field of mod_reg_r/m)
+    #       the mod bits 00 and r/m bits 101 indicate a 32-bit displacement follows.
+    if reg.bits == 32:
+        return '\xff' + mod_reg_rm('dir', 0b010, reg)
+    else:
+        return '\xff' + mod_reg_rm('dir', 0b010, reg)
+        
+        
+def call_rel(addr):
+    """CALL (relative) 
+    
+    Opcode: 0xe8 cd  (cd indicates 4-byte argument follows opcode)
+    
+    Note: addr is signed int relative to _next_ instruction pointer 
+          (which should be current instruction pointer + 5, since this is a
+          5 byte instruction).
+    """
+    # Note: there is no 64-bit relative call.
+    return '\xe8' + struct.pack('i', addr)
+
+
+
+#   Data moving instructions
+#----------------------------------------
 
 def mov(a, b):
     a = interpret(a)
@@ -797,7 +867,12 @@ def movsd(dst, src):
         assert src.bits == 128
         return '\xf2\x0f\x11' + modrm.code
         
-        
+
+
+#   Arithmetic instructions
+#----------------------------------------
+
+
 def add(dst, src):
     """Perform integer addition of dst + src and store the result in dst.
     """
@@ -920,73 +995,58 @@ def idiv(op):
         return '\xf7' + modrm.code
 
 
-def ret(pop=0):
-    """ RET
-    
-    Return; pop a value from the stack and branch to that address.
-    Optionally, extra values may be popped from the stack after the return 
-    address.
-    """
-    if pop > 0:
-        return '\xc2' + struct.pack('<h', pop)
-    else:
-        return '\xc3'
 
-def leave():
-    """ LEAVE
-    
-    High-level procedure exit.
-    Equivalent to::
-    
-       mov(esp, ebp)
-       pop(ebp)
-    """
-    return '\xc9'
+#   Testing instructions
+#----------------------------------------
 
-def call(op):
-    """CALL op
-    
-    Push EIP onto stack and branch to address specified in *op*.
-    
-    If op is a signed int (16 or 32 bits), this generates a near, relative call
-    where the displacement given in op is relative to the next instruction.
-    
-    If op is a Register then this generates a near, absolute call where the 
-    absolute offset is read from the register.
-    """
-    if isinstance(op, Register):
-        return call_abs(op)
-    elif isinstance(op, int):
-        return call_rel(op)
-    else:
-        raise TypeError("call argument must be int or Register")
 
-def call_abs(reg):
-    """CALL (absolute) 
-    
-    Opcode: 0xff /2
-    
-    """
-    # note: opcode extension 2 is encoded in bits 3-5 of the next byte
-    #       (this is the reg field of mod_reg_r/m)
-    #       the mod bits 00 and r/m bits 101 indicate a 32-bit displacement follows.
-    if reg.bits == 32:
-        return '\xff' + mod_reg_rm('dir', 0b010, reg)
+def cmp(a, b):
+    if isinstance(b, (Register, Pointer)):
+        modrm = ModRmSib(a, b)
+        if modrm.argtypes == 'rm':
+            opcode = '\x3b'
+        elif modrm.argtypes == 'mr':
+            opcode = '\x39'
+        else:
+            raise NotImplementedError()
+        imm = ''
     else:
-        return '\xff' + mod_reg_rm('dir', 0b010, reg)
-        
-        
-def call_rel(addr):
-    """CALL (relative) 
+        modrm = ModRmSib(0x7, a)
+        opcode = '\x81'
+        imm = struct.pack('i', b)
     
-    Opcode: 0xe8 cd  (cd indicates 4-byte argument follows opcode)
+    prefix = ''
+    if modrm.bits == 64:
+        prefix += rex.w
     
-    Note: addr is signed int relative to _next_ instruction pointer 
-          (which should be current instruction pointer + 5, since this is a
-          5 byte instruction).
+    return prefix + opcode + modrm.code + imm
+
+
+def test(a, b):
+    """Computes the bit-wise logical AND of first operand (source 1 operand) 
+    and the second operand (source 2 operand) and sets the SF, ZF, and PF 
+    status flags according to the result.
     """
-    # Note: there is no 64-bit relative call.
-    return '\xe8' + struct.pack('i', addr)
+    if isinstance(b, (Register, Pointer)):
+        modrm = ModRmSib(a, b)
+        opcode = '\x85'
+        imm = ''
+    else:
+        modrm = ModRmSib(0x0, a)
+        opcode = '\xf7'
+        imm = struct.pack('i', b)
+    
+    prefix = ''
+    if modrm.bits == 64:
+        prefix += rex.w
+    
+    return prefix + opcode + modrm.code + imm
+    
+
+
+
+#   Branching instructions
+#----------------------------------------
 
 def jmp(addr):
     if isinstance(addr, Register):
@@ -996,17 +1056,17 @@ def jmp(addr):
     else:
         raise TypeError("jmp accepts Register (absolute), integer, or label (relative).")
 
-def jmp_rel(addr):
+def jmp_rel(addr, opcode='\xe9'):
     """JMP rel32 (relative)
     
     Opcode: 0xe9 cd 
     """
     if isinstance(addr, str):
-        code = Code('\xe9\x00\x00\x00\x00')
-        code.replace(1, "%s - next_instr_addr" % addr, 'i')
+        code = Code(opcode + '\x00\x00\x00\x00')
+        code.replace(len(opcode), "%s - next_instr_addr" % addr, 'i')
         return code
     elif isinstance(addr, int):
-        return '\xe9' + struct.pack('i', addr - 5)
+        return opcode + struct.pack('i', addr - (len(opcode)+4))
 
 def jmp_abs(reg):
     """JMP r/m32 (absolute)
@@ -1014,6 +1074,131 @@ def jmp_abs(reg):
     Opcode: 0xff /4
     """
     return '\xff' + mod_reg_rm('dir', 0x4, reg)
+
+def ja(addr):
+    """Jump near if above (CF=0 and ZF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x87')
+    
+def jae(addr):
+    """Jump near if above or equal (CF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x83')
+    
+def jb(addr):
+    """Jump near if below (CF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x82')
+
+def jbe(addr):
+    """Jump near if below or equal (CF=1 or ZF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x86')
+
+def jc(addr):
+    """Jump near if carry (CF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x82')
+
+def je(addr):
+    """Jump near if equal (ZF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x84')
+
+def jz(addr):
+    """Jump near if 0 (ZF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x84')
+
+def jg(addr):
+    """Jump near if greater (ZF=0 and SF=OF)."""
+    return jmp_rel(addr, opcode='\x0f\x8f')
+
+def jge(addr):
+    """Jump near if greater or equal (SF=OF)."""
+    return jmp_rel(addr, opcode='\x0f\x8d')
+
+def jl(addr):
+    """Jump near if less (SF≠ OF)."""
+    return jmp_rel(addr, opcode='\x0f\x8c')
+
+def jle(addr):
+    """Jump near if less or equal (ZF=1 or SF≠ OF)."""
+    return jmp_rel(addr, opcode='\x0f\x8e')
+
+def jna(addr):
+    """Jump near if not above (CF=1 or ZF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x86')
+
+def jnae(addr):
+    """Jump near if not above or equal (CF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x82')
+
+def jnb(addr):
+    """Jump near if not below (CF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x83')
+
+def jnbe(addr):
+    """Jump near if not below or equal (CF=0 and ZF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x87')
+
+def jnc(addr):
+    """Jump near if not carry (CF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x83')
+
+def jne(addr):
+    """Jump near if not equal (ZF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x85')
+
+def jng(addr):
+    """Jump near if not greater (ZF=1 or SF≠ OF)."""
+    return jmp_rel(addr, opcode='\x0f\x8e')
+
+def jnge(addr):
+    """Jump near if not greater or equal (SF ≠ OF)."""
+    return jmp_rel(addr, opcode='\x0f\x8c')
+
+def jnl(addr):
+    """Jump near if not less (SF=OF)."""
+    return jmp_rel(addr, opcode='\x0f\x8d')
+
+def jnle(addr):
+    """Jump near if not less or equal (ZF=0 and SF=OF)."""
+    return jmp_rel(addr, opcode='\x0f\x8f')
+
+def jno(addr):
+    """Jump near if not overflow (OF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x81')
+
+def jnp(addr):
+    """Jump near if not parity (PF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x8b')
+
+def jns(addr):
+    """Jump near if not sign (SF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x89')
+
+def jnz(addr):
+    """Jump near if not zero (ZF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x85')
+
+def jo(addr):
+    """Jump near if overflow (OF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x80')
+
+def jp(addr):
+    """Jump near if parity (PF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x8a')
+
+def jpe(addr):
+    """Jump near if parity even (PF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x8a')
+
+def jpo(addr):
+    """Jump near if parity odd (PF=0)."""
+    return jmp_rel(addr, opcode='\x0f\x8b')
+
+def js(addr):
+    """Jump near if sign (SF=1)."""
+    return jmp_rel(addr, opcode='\x0f\x88')
+
+
+#   OS instructions
+#----------------------------------------
+
 
 def int_(code):
     """INT code
@@ -1028,13 +1213,6 @@ def int_(code):
 def syscall():
     return '\x0f\x05'
 
-#define OP_MOV      0x89
-#define OP_POP      0x58
-#define OP_ADD      0x83
-#define OP_RETN     0xC2
-#define OP_RET      0xC3
-#define OP_JMP      0xEB
-#define OP_CALL     0xE8
 
 
 def phex(code):

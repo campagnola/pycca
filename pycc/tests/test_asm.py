@@ -121,7 +121,9 @@ def test_lea():
 # Testing instructions
 
 def test_cmp():
-    assert cmp([0x1000], 0) == as_code('cmp dword ptr [0x1000], 0')
+    assert cmp(dword(0x1000), 0x1000) == as_code('cmp dword ptr [0x1000], 0x1000')
+    assert cmp(rbx, 0x1000) == as_code('cmp rbx, 0x1000')
+    assert cmp(qword(rbx+0x1000), 0x1000) == as_code('cmp qword ptr [rbx+0x1000], 0x1000')
 
 def test_test():
     assert test(eax, eax) == as_code('test eax,eax')
@@ -133,11 +135,13 @@ def test_jmp():
     assert jmp(rax) == as_code('jmp rax')
     assert jmp(0x1000) == as_code('jmp .+0x1000')    
 
-def test_je():
-    assert je([0x1000]) == as_code('je 0x1000')
-
-def test_jne():
-    assert jne([0x1000]) == as_code('jne 0x1000')
+def test_jcc():
+    all_jcc = ('a,ae,b,be,c,e,z,g,ge,l,le,na,nae,nb,nbe,nc,ne,ng,nge,nl,nle,'
+               'no,np,ns,nz,o,p,pe,po,s').split(',')
+    for name in all_jcc:
+        name = 'j' + name
+        func = globals()[name]
+        assert func(0x1000) == as_code('%s .+0x1000' % name)
 
 
 # OS instructions
