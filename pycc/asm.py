@@ -1003,7 +1003,7 @@ def idiv(op):
 def cmp(a, b):
     if isinstance(b, (Register, Pointer)):
         modrm = ModRmSib(a, b)
-        if modrm.argtypes == 'rm':
+        if modrm.argtypes in ('rm', 'rr'):
             opcode = '\x3b'
         elif modrm.argtypes == 'mr':
             opcode = '\x39'

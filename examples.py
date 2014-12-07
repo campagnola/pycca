@@ -173,3 +173,66 @@ fn.restype = ctypes.c_uint64
 
 print "Read from array: %d" % fn()
 print "Modified array: %d" % data[5]
+
+
+
+#   Example 7: a basic for-loop
+#------------------------------------------------------
+
+fn = mkfunction([
+    mov(rax, 0),
+    label('startfor'),
+    cmp(rax, 10),
+    jge('breakfor'),
+    inc(rax),
+    jmp('startfor'),
+    label('breakfor'),
+    ret()
+])
+
+fn.restype = ctypes.c_uint64
+print "Iterate to 10:", fn()
+
+
+
+#   Example 7: a useful function!
+#------------------------------------------------------
+
+if sys.platform == 'win32':
+    args = [rcx, rdx] #, r8, r9]
+else:
+    args = [rdi, rsi, rdx, rcx] #, r8, r9]
+
+
+find_first = mkfunction([
+    mov(rax, 0),
+    label('start_for'),
+    cmp([args[0]+rax*8], 0),
+    jge('break_for'),
+    inc(rax),
+    cmp(rax, args[1]),
+    jge('break_for'),
+    jmp('start_for'),
+    label('break_for'),
+    ret()
+])
+
+find_first.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
+find_first.restype = ctypes.c_uint64
+find_first.__doc__ = "Return index of first value in an array that is >= 0"
+
+data = -1 + np.zeros(10000000, dtype=np.int64)
+data[-1] = 1
+import time
+start = time.time()
+ind1 = find_first(data.ctypes.data, len(data))
+duration1 = time.time() - start
+
+start = time.time()
+ind2 = np.argwhere(data >= 0)[0,0]
+duration2 = time.time() - start
+
+assert ind1 == ind2
+print "First >= 0:", ind1
+print "ASM version took %0.2fms" % (duration1*1000) 
+print "NumPy version took %0.2fms" % (duration2*1000) 
