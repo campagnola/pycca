@@ -35,3 +35,38 @@ Alpha:
   and call this executable code via ctypes.
 * Simple assembler system in progress; see examples.py.
 
+
+Todo
+----
+
+* Clean up ASM system
+   * Instruction class: interprets arg types, constructs prefix +opcode +modrm +sib +disp +imm.
+     Most instructions should make use of this.
+   * Instruction docstrings: description on first line; maybe remove other information?
+   * Documentation on how to add new instruction support based on intel reference, 
+     how to add new unit tests
+
+* Add more floating point instructions
+
+* Better 32-bit arch support
+
+* Python 3 support
+
+* Intermediate data structures for C-like function code, something like:
+
+```
+func('int', 'my_func', [('int', 'arg1'), ('int', 'arg2')], [
+    decl('int', 'j'),
+    decl('int', 'i'),
+    for('i=0', 'i<10', 'i++', [
+        assign('j', 'i+1'),
+    ]),
+    return('j')
+])
+```
+
+* Support 32/64-bit calling conventions on win, linux, osx
+
+* Simple C compiler
+
+
