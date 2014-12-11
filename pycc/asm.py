@@ -340,6 +340,9 @@ class Register(object):
     def __rmul__(self, x):
         return self * x
 
+    def __repr__(self):
+        return "Register(0x%x, %s, %d)" % (self._val, self._name, self._bits)
+        
 
 class Pointer(object):
     """Representation of an effective memory address calculated as a 
@@ -459,9 +462,14 @@ class Pointer(object):
             raise TypeError("Invalid base/index expression: esp*%d" % (2**byts))
         
         if self.disp is not None:
-            mod = 'ind32'
-            disp = struct.pack('i', self.disp)
+            disp = pack_int(self.disp, int8=True, int16=False, int32=True, int64=False)
+            if len(disp) == 1:
+                mod = 'ind8'
+            else:
+                mod = 'ind32'
+            
             if base is None:
+                disp = struct.pack('i', self.disp)
                 mod = 'ind'   # sib suggests disp32 instead of mod
                 base = ebp 
                 
@@ -828,7 +836,7 @@ def instruction(modes, operand_enc, *args):
     # Start encoding instruction
     # extract encoding for opcode
     prefixes = []
-    rex = 0
+    rex_byt = 0
     
     # parse opcode string (todo: these should be pre-parsed)
     op_parts = mode[0].split(' ')
@@ -863,14 +871,14 @@ def instruction(modes, operand_enc, *args):
         if enc == 'opcode +rd (r)':
             opcode = opcode[:-1] + chr(ord(opcode[-1]) | arg.val)
             if arg.rex:
-                rex = rex | rex.b
+                rex_byt = rex_byt | rex.b
             if arg.bits == 16:
                 prefixes.append('\x66')
         elif enc == 'ModRM:r/m (r)':
             rm = arg
             if arg.bits == 16:
                 prefixes.append('\x66')
-            if arg.addrsize == 16:
+            if arg.addrsize == ARCH//2:
                 prefixes.append('\x67')
         elif enc == 'ModRM:reg (r)':
             reg = arg
@@ -887,12 +895,12 @@ def instruction(modes, operand_enc, *args):
     if imm is not None:
         operands.append(imm)
                 
-    if rex == 0:
-        rex = ''
+    if rex_byt == 0:
+        rex_byt = ''
     else:
-        rex = chr(rex)
+        rex_byt = chr(rex_byt)
     
-    return ''.join(prefixes) + rex + opcode + ''.join(operands)
+    return ''.join(prefixes) + rex_byt + opcode + ''.join(operands)
 
     
 
@@ -1556,7 +1564,9 @@ def run_as(asm):
     print "--- code: ---"
     print asm
     print "-------------"
-    raise Exception("Error running 'as' or 'objdump' (see above).")
+    exc = Exception("Error running 'as' or 'objdump' (see above).")
+    exc.asm = asm
+    raise exc
 
 def as_code(asm):
     """Return machine code string for *asm* using gnu as and objdump.

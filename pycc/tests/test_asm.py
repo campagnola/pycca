@@ -6,7 +6,32 @@ for name,obj in globals().items():
     if isinstance(obj, Register):
         regs.setdefault('all', []).append(obj)
         regs.setdefault(obj.bits, []).append(obj)
+        if 'mm' not in obj.name:
+            # general-purpose registers
+            regs.setdefault('gp', []).append(obj)
 
+def test(instr, *args):
+    """Generic instruction test: ensure that output of our function matches
+    output of GNU assembler.
+    
+    *args* must be instruction arguments + assembler code to compare 
+    as the last argument.
+    """
+    asm = args[-1]
+    args = args[:-1]
+    
+    try:
+        code1 = instr(*args)
+    except TypeError as exc:
+        # Only pass if assembler also generates error
+        try:
+            code2 = as_code(asm)
+            raise exc
+        except Exception:
+            return
+
+    code2 = as_code(asm)
+    assert code1 == code2
 
 
 def test_effective_address():
@@ -73,8 +98,21 @@ def test_movsd():
 # Procedure management instructions
 
 def test_push():
-    for reg in regs['all']:
-        assert push(reg) == as_code('push %s' % reg.name)
+    for reg in regs['gp']:
+        test(push, reg, 'push %s' % reg.name)
+        test(push, [reg], 'push [%s]' % reg.name)
+        test(push, [reg+0x1], 'push [%s+0x1]' % reg.name)
+        test(push, [reg+0x100], 'push [%s+0x100]' % reg.name)
+        test(push, [reg+0x10000], 'push [%s+0x10000]' % reg.name)
+        test(push, [reg+rax*2+0x1], 'push [%s+rax*2+0x1]' % reg.name)
+        test(push, [reg+rax*2+0x100], 'push [%s+rax*2+0x100]' % reg.name)
+        test(push, [reg+rax*2+0x10000], 'push [%s+rax*2+0x10000]' % reg.name)
+        test(push, [reg+rax*2], 'push [%s+rax*2]' % reg.name)
+        test(push, [0x1], 'push [0x1]' % reg.name)
+        test(push, [0x100], 'push [0x100]' % reg.name)
+        test(push, [0x10000], 'push [0x10000]' % reg.name)
+        
+        #assert push(reg) == as_code('push %s' % reg.name)
         #assert push(reg+0x1000) == as_code('push %s+0x1000' % reg.name)
         
     assert push(rbp) == as_code('pushq rbp')
