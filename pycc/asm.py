@@ -165,7 +165,10 @@ def mod_reg_rm(mod, reg, rm):
     elif rm == 'disp':
         rm = 0b101  # Indicates displacement value without register offset when used
                     # as R/M field in ModR/M
-
+    if isinstance(reg, Register):
+        reg = reg.val
+    if isinstance(rm, Register):
+        rm = rm.val
     return chr(mod_vals[mod] | reg << 3 | rm)
 
 
@@ -184,7 +187,7 @@ def mk_sib(byts, offset, base):
     When base is [ebp], add disp32.
     When offset is [esp], no offset is applied.
     """
-    return chr(byts << 6 | offset << 3 | base)
+    return chr(byts << 6 | offset.val << 3 | base.val)
 
 
 #
@@ -267,13 +270,6 @@ class ModRmSib(object):
             self.bits = b.bits
 
 
-def instruction(opcode, dest=None, source=None):
-    """Automatically generate complete instructions.
-    
-    opcode: the base opcode or a dictionary of {argtypes: opcode} pairs to 
-    select from bassed on the source and dest arg types. May also be a tuple
-    (opcode, extension) or a dictionary of tuples.
-    """
     
     
 
@@ -282,14 +278,13 @@ def instruction(opcode, dest=None, source=None):
 #   Register definitions
 #----------------------------------------
 
-class Register(int):
-    """A float holding information about its source.
+class Register(object):
+    """General purpose register.
     """
-    def __new__(cls, val, name, bits):
-        f = int.__new__(cls, val)
-        f._name = name
-        f._bits = bits
-        return f
+    def __init__(self, val, name, bits):
+        self._val = val
+        self._name = name
+        self._bits = bits
 
     @property
     def name(self):
@@ -303,6 +298,18 @@ class Register(int):
         """
         return self._bits
 
+    @property
+    def val(self):
+        """3-bit integer code for this register.
+        """
+        return self._val & 0b111
+    
+    @property
+    def rex(self):
+        """Bool indicating value of 4th bit of register code
+        """
+        return self._val & 0b1000 > 0
+        
     def __add__(self, x):
         if isinstance(x, Register):
             return Pointer(reg1=self, reg2=x)
@@ -346,26 +353,27 @@ class Pointer(object):
         self.scale = scale
         self.reg2 = reg2
         self.disp = disp
-        self._bits = None
+        self._bits = ARCH
     
     def copy(self):
         return Pointer(self.reg1, self.scale, self.reg2, self.disp)
-    
+
+    @property
+    def addrsize(self):
+        """Maximum number of bits for encoded address size.
+        """
+        regs = []
+        if self.reg1 is not None:
+            regs.append(self.reg1.bits)
+        if self.reg2 is not None:
+            regs.append(self.reg2.bits)
+        if self.disp is not None:
+            regs.append(32)
+        return max(regs)
+        
     @property
     def bits(self):
-        """Maximum number of bits for any register / displacement
-        """
-        if self._bits is None:
-            regs = []
-            if self.reg1 is not None:
-                regs.append(self.reg1.bits)
-            if self.reg2 is not None:
-                regs.append(self.reg2.bits)
-            if self.disp is not None:
-                regs.append(32)
-            return max(regs)
-        else:
-            return self._bits
+        return self._bits
         
     @bits.setter
     def bits(self, b):
@@ -703,18 +711,253 @@ def interpret(arg):
         return arg
 
 
+class Instruction(object):
+    def __init__(self, a=None, b=None, opcode=None, ext=None, modrm=True):
+        self.args = [a, b]
+        self.opcode = opcode
+        self.ext = ext
+        self.imm_fmt = 'i'
+        self.modrm = modrm
+
+        self.argtypes = []
+        for arg in self.args:
+            arg = interpret(arg)
+            if isinstance(arg, Register):
+                self.argtypes.append('r')
+            elif isinstance(arg, Pointer):
+                self.argtypes.append('m')
+            elif isinstance(arg, (int, str)):
+                self.argtypes.append('i')
+            else:
+                raise TypeError("Instruction arguments may be Pointer, "
+                                "Register, int, or str.")
+
+    @property
+    def code(self):
+        prefix = ''
+        opcode = self.opcode
+        modrm = ''
+        imm = ''
+        a, b = self.args
+        
+        if self.modrm:
+            if self.ext is None:
+                modrm = ModRmSib(a, b)
+                imm = ''
+            else:
+                modrm = ModRmSib(self.ext, a)
+                imm = struct.pack(self.imm_fmt, b)
+            if ARCH == 64:
+                if modrm.argbits[0] == 16:
+                    prefix += '\x66'
+                if modrm.argbits[1] == 32:
+                    prefix += '\x67'
+                if modrm.argbits[0] == 64:
+                    prefix += rex.w
+            else:
+                raise NotImplementedError("only implemented for 64bit")
+            modrm = modrm.code
+        else:
+            modrm = ''
+        
+        return prefix + opcode + modrm.code + imm
+
+
+def get_instruction_mode(sig, modes):
+    """For a given signature of operand types, return an appropriate 
+    instruction mode.
+    """
+    orig_sig = sig
+    if sig in modes:
+        return sig
+    
+    if sig[:2] == ('r', 'r'):
+        sig = ('r', 'r/m') + sig[2:]
+        if sig in modes:
+            return sig
+    
+    if sig[-1].startswith('imm'):
+        size = int(sig[-1][3:])
+        while size < 64:
+            size *= 2
+            sig = sig[:-1] + ('imm%d' % size,)
+            if sig in modes:
+                return sig
+    
+    raise TypeError('Argument types not accepted for this instruction: %s' 
+                    % orig_sig)
+
+
+def instruction(modes, operand_enc, *args):
+    """Generic function for encoding an instruction given information from
+    the intel reference and the operands.
+    """
+    # Determine signature of arguments provided
+    sig = []
+    clean_args = []
+    for arg in args:
+        if isinstance(arg, list):
+            arg = interpret(arg)
+            
+        if isinstance(arg, Register):
+            sig.append('r%d' % arg.bits)
+        elif isinstance(arg, Pointer):
+            sig.append('r/m%d' % arg.bits)
+        elif isinstance(arg, int):
+            arg = pack_int(arg, int8=True)
+            sig.append('imm%d' % (8*len(arg)))
+        elif isinstance(arg, str):
+            sig.append('imm%d' % len(arg))
+        else:
+            raise TypeError("Invalid argument type %s." % type(arg))
+        clean_args.append(arg)
+    sig = tuple(sig)
+
+    # Match this to an appropriate function signature
+    use_sig = get_instruction_mode(sig, modes)
+    mode = modes[use_sig]
+    
+    # Make sure this signature is supported for this architecture
+    if ARCH == 64 and mode[2] is False:
+        raise TypeError('Argument types not accepted in 64-bit mode: %s' 
+                        % sig)
+    if ARCH == 32 and mode[3] is False:
+        raise TypeError('Argument types not accepted in 32-bit mode: %s' 
+                        % sig)
+
+    # Start encoding instruction
+    # extract encoding for opcode
+    prefixes = []
+    rex = 0
+    
+    # parse opcode string (todo: these should be pre-parsed)
+    op_parts = mode[0].split(' ')
+    opcode_s = op_parts[0]
+    if '+' in opcode_s:
+        opcode_s = opcode_s.partition('+')[0]
+        reg_in_opcode = True
+    else:
+        reg_in_opcode = False
+    
+    # assemble initial opcode
+    opcode = ''
+    for i in range(0, len(opcode_s), 2):
+        opcode += chr(int(opcode_s[i:i+2], 16))
+    
+    # check for opcode extension
+    opcode_ext = None
+    if len(op_parts) > 1:
+        if op_parts[1][0] == '/':
+            opcode_ext = int(op_parts[1][1])
+
+    # initialize modrm and imm 
+    reg = opcode_ext
+    rm = None
+    imm = None
+    
+    # encode operands
+    operands = []
+    for i,arg in enumerate(clean_args):
+        # look up encoding for this operand
+        enc = operand_enc[mode[1][i]][i]
+        if enc == 'opcode +rd (r)':
+            opcode = opcode[:-1] + chr(ord(opcode[-1]) | arg.val)
+            if arg.rex:
+                rex = rex | rex.b
+            if arg.bits == 16:
+                prefixes.append('\x66')
+        elif enc == 'ModRM:r/m (r)':
+            rm = arg
+            if arg.bits == 16:
+                prefixes.append('\x66')
+            if arg.addrsize == 16:
+                prefixes.append('\x67')
+        elif enc == 'ModRM:reg (r)':
+            reg = arg
+        elif enc.startswith('imm'):
+            immsize = int(use_sig[i][3:])
+            opsize = 8 * len(arg)
+            assert opsize <= immsize
+            imm = arg + '\0'*((immsize-opsize)//8)
+            
+    if reg is not None:
+        modrm = ModRmSib(reg, rm)
+        operands.append(modrm.code)
+        
+    if imm is not None:
+        operands.append(imm)
+                
+    if rex == 0:
+        rex = ''
+    else:
+        rex = chr(rex)
+    
+    return ''.join(prefixes) + rex + opcode + ''.join(operands)
+
+    
 
 #   Procedure management instructions
 #----------------------------------------
 
 
-def push(reg):
-    """ PUSH REG
+# Attempt at completely general implementation of push
+def push(*args):
+    """Push register, memory, or immediate onto the stack.
     
     Opcode: 50+rd
     Push value stored in reg onto the stack.
     """
-    return chr(0x50 | reg)
+    modes = {
+        ('r/m16',): ['ff /6', 'm', True, True],
+        ('r/m32',): ['ff /6', 'm', False, True],
+        ('r/m64',): ['ff /6', 'm', True, False],
+        ('r16',): ['50+rw', 'o', True, True],
+        ('r32',): ['50+rd', 'o', False, True],
+        ('r64',): ['50+rd', 'o', True, False],
+        ('imm8',): ['6a ib', 'i', True, True],
+        #('imm16',): ['68 iw', 'i', True, True],  # gnu as does not use this
+        ('imm32',): ['68 id', 'i', True, True],
+    }
+    
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o': ['opcode +rd (r)'],
+        'i': ['imm8/16/32'],
+    }
+    
+    return instruction(modes, operand_enc, *args)
+            
+    
+#def push(*args):
+    #"""Push register, memory, or immediate onto the stack.
+    
+    #Opcode: 50+rd
+    #Push value stored in reg onto the stack.
+    #"""
+    #if isinstance(op, Register):
+        ## don't support segment registers for now.
+        ##shortcuts = {
+            ##cs: '\x0e',
+            ##ss: '\x16',
+            ##ds: '\x1e',
+            ##es: '\x06',
+            ##fs: '\x0f\xa0',
+            ##gs: '\x0f\xa8'}
+        ##if op in shortcuts:
+            ##return shortcuts[op]
+        #if ARCH == 64 and op.bits == 32:
+            #raise TypeError("Cannot push 32-bit register in 64-bit mode.")
+        #elif ARCH == 32 and op.bits == 64:
+            #raise TypeError("Cannot push 64-bit register in 32-bit mode.")
+        #return chr(0x50 | op.val)
+    #elif isinstance(op, Pointer):
+        #return '\xff' + mod_reg_rm(0x6, op)
+    #elif isinstance(op, int):
+        #imm = pack_int(op, int8=True)
+        #if len(imm) == 1:
+            #return '\x6a' + imm
+        #else:
+            #return '\x68' + imm
 
 def pop(reg):
     """ POP REG
@@ -722,7 +965,7 @@ def pop(reg):
     Opcode: 50+rd
     Push value stored in reg onto the stack.
     """
-    return chr(0x58 | reg)
+    return chr(0x58 | reg.val)
 
 def ret(pop=0):
     """ RET
@@ -891,10 +1134,10 @@ def mov_r_imm(r, val, fmt=None):
     """
     if r.bits == 32:
         fmt = '<I' if fmt is None else fmt
-        return chr(0xb8 | r) + struct.pack(fmt, val)
+        return chr(0xb8 | r.val) + struct.pack(fmt, val)
     elif r.bits == 64:
         fmt = '<Q' if fmt is None else fmt
-        return rex.w + chr(0xb8 | r) + struct.pack(fmt, val)
+        return rex.w + chr(0xb8 | r.val) + struct.pack(fmt, val)
     else:
         raise NotImplementedError('register bit size %d not supported' % r.bits)
 
@@ -1050,26 +1293,35 @@ def idiv(op):
 
 
 def cmp(a, b):
-    if isinstance(b, (Register, Pointer)):
-        modrm = ModRmSib(a, b)
-        if modrm.argtypes in ('rm', 'rr'):
-            opcode = '\x3b'
-        elif modrm.argtypes == 'mr':
-            opcode = '\x39'
-        else:
-            raise NotImplementedError()
-        imm = ''
-    else:
-        modrm = ModRmSib(0x7, a)
-        opcode = '\x81'
-        imm = struct.pack('i', b)
+    #if isinstance(b, (Register, Pointer)):
+        #modrm = ModRmSib(a, b)
+        #if modrm.argtypes in ('rm', 'rr'):
+            #opcode = '\x3b'
+        #elif modrm.argtypes == 'mr':
+            #opcode = '\x39'
+        #else:
+            #raise NotImplementedError()
+        #imm = ''
+    #else:
+        #modrm = ModRmSib(0x7, a)
+        #opcode = '\x81'
+        #imm = struct.pack('i', b)
     
-    prefix = ''
-    if modrm.bits == 64:
-        prefix += rex.w
+    #prefix = ''
+    #if modrm.bits == 64:
+        #prefix += rex.w
     
-    return prefix + opcode + modrm.code + imm
-
+    #return prefix + opcode + modrm.code + imm
+    inst = Instruction(a, b)
+    if inst.argtypes in ('rm', 'rr'):
+        inst.opcode = '\x3b'
+    elif inst.argtypes == 'mr':
+        inst.opcode = '\x39'
+    elif inst.argtypes in ('mi', 'ri'):
+        inst.opcode = '\x81'
+        inst.ext = 0x7
+        inst.imm_fmt = 'i'
+    return inst.code
 
 def test(a, b):
     """Computes the bit-wise logical AND of first operand (source 1 operand) 
@@ -1301,6 +1553,9 @@ def run_as(asm):
     for i,line in enumerate(out):
         if "<.text>:" in line:
             return out[i+1:]
+    print "--- code: ---"
+    print asm
+    print "-------------"
     raise Exception("Error running 'as' or 'objdump' (see above).")
 
 def as_code(asm):

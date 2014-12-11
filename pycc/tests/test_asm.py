@@ -1,6 +1,13 @@
 from pytest import raises
 from pycc.asm import *
     
+regs = {}
+for name,obj in globals().items():
+    if isinstance(obj, Register):
+        regs.setdefault('all', []).append(obj)
+        regs.setdefault(obj.bits, []).append(obj)
+
+
 
 def test_effective_address():
     # test that register/scale/offset arithmetic works
@@ -66,6 +73,10 @@ def test_movsd():
 # Procedure management instructions
 
 def test_push():
+    for reg in regs['all']:
+        assert push(reg) == as_code('push %s' % reg.name)
+        #assert push(reg+0x1000) == as_code('push %s+0x1000' % reg.name)
+        
     assert push(rbp) == as_code('pushq rbp')
     #assert push(rax) == as_code('push rax')
 
