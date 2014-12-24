@@ -27,8 +27,12 @@ if ARCH == 32:
         ret()
     ]
 else:
+    if sys.platform == 'darwin':
+        syscall_cmd = 0x2000004
+    else:
+        syscall_cmd = 0x1
     prnt = [  # write to stdout on 64-bit linux
-        mov(rax, 1),   # write  (see unistd_64.h)
+        mov(rax, syscall_cmd),   # write  (see unistd_64.h)
         mov(rdi, 1),   # stdout
         mov(rsi, ctypes.addressof(msg)),
         mov(rdx, len(msg)-1),
@@ -92,7 +96,10 @@ print("""
 # Again we need to worry about calling conventions here.
 # Most common 64-bit conventions pass the first float arg in xmm0
 
-libm = ctypes.cdll.LoadLibrary('libm.so.6')
+if sys.platform == 'darwin':
+    libm = ctypes.cdll.LoadLibrary('libm.dylib')
+else:
+    libm = ctypes.cdll.LoadLibrary('libm.so.6')
 # look up math.exp() from C standard lib, dereference function pointer
 fp = (ctypes.c_char*8).from_address(ctypes.addressof(libm.exp))
 fp = struct.unpack('Q', fp[:8])[0]
