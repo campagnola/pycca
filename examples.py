@@ -151,10 +151,9 @@ I = 5
 data[I] = 12345
 addr = data.ctypes.data
 fn = mkfunction([
-    mov(rax, [addr+I*data.strides[0]]),  # return value from array[5]
-    mov(rbx, addr),                      # copy array address to register
-    mov(rcx, 54321),                     # copy new value to register
-    mov([rbx+I*data.strides[0]], rcx),   # copy new value to array[5]
+    mov(rcx, addr),                        # copy memory address to rcx
+    mov(rax, [rcx+I*data.strides[0]]),     # return value from array[5]
+    mov([rcx+I*data.strides[0]], 54321),   # copy new value to array[5]
     ret(),
 ])
 fn.restype = ctypes.c_uint64
