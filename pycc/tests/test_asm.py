@@ -47,36 +47,36 @@ def addresses(base):
             yield [disp], '[0x%x]' % disp
 
 
-#def test_effective_address():
-    ## test that register/scale/offset arithmetic works
-    #assert repr(interpret([rax])) == '[rax]'
-    #assert repr(rax + rbx) == '[rbx + rax]'
-    #assert repr(8*rax + rbx) == '[8*rax + rbx]'
-    #assert repr(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
-    #assert repr(interpret([0x1000])) == '[0x1000]'
-    #assert repr(0x1000 + rcx) == '[0x1000 + rcx]'
-    #assert repr(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
+def test_effective_address():
+    # test that register/scale/offset arithmetic works
+    assert repr(interpret([rax])) == '[rax]'
+    assert repr(rax + rbx) == '[rbx + rax]'
+    assert repr(8*rax + rbx) == '[8*rax + rbx]'
+    assert repr(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
+    assert repr(interpret([0x1000])) == '[0x1000]'
+    assert repr(0x1000 + rcx) == '[0x1000 + rcx]'
+    assert repr(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
 
-    ## test that we can generate a variety of mod_r/m+sib+disp strings
-    #assert (interpret([rax])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax]')[2:]
-    #assert (rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax + rbx]')[2:]
-    #assert (8*rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax*8 + rbx]')[2:]
-    #assert (rbx + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbx + 4*rcx + 0x1000]')[2:]
-    #assert (interpret([0x1000])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000]')[2:]
-    #assert (0x1000 + rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + rcx]')[2:]
-    #assert (0x1000 + 2*rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + 2*rcx]')[2:]
+    # test that we can generate a variety of mod_r/m+sib+disp strings
+    assert (interpret([rax])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax]')[2:]
+    assert (rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax + rbx]')[2:]
+    assert (8*rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax*8 + rbx]')[2:]
+    assert (rbx + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbx + 4*rcx + 0x1000]')[2:]
+    assert (interpret([0x1000])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000]')[2:]
+    assert (0x1000 + rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + rcx]')[2:]
+    assert (0x1000 + 2*rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + 2*rcx]')[2:]
 
-    ## test using rbp as the SIB base
-    #assert (rbp + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbp + 4*rcx + 0x1000]')[2:]
+    # test using rbp as the SIB base
+    assert (rbp + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbp + 4*rcx + 0x1000]')[2:]
     
-    ## test using esp as the SIB offset
-    #with raises(TypeError):
-        #(rbx + 4*esp + 0x1000).modrm_sib(rdx)
-    #with raises(TypeError):
-        #(4*esp + 0x1000).modrm_sib(rdx)
+    # test using esp as the SIB offset
+    with raises(TypeError):
+        (rbx + 4*esp + 0x1000).modrm_sib(rdx)
+    with raises(TypeError):
+        (4*esp + 0x1000).modrm_sib(rdx)
     
-    ## test rex prefix:
-    #assert interpret([r8]).modrm_sib(rax)[0] == rex.b
+    # test rex prefix:
+    assert interpret([r8]).modrm_sib(rax)[0] == rex.b
     
 
 def test_pack_int():
@@ -114,33 +114,16 @@ def test_pack_int():
 # Procedure management instructions
 
 def test_push():
-    for reg in regs['gp']:
-        # can we push a register?
-        test(push, reg, 'push %s' % reg.name)
-        
-        # can we push immediate values?
-        test(push, reg, 'push %s' % reg.name)        
-        
-        # can we push from memory? 
-        for py,asm in addresses(reg):
-            test(push, py, 'push '+asm)
-        #test(push, [reg], 'push [%s]' % reg.name)
-        #test(push, [reg+0x1], 'push [%s+0x1]' % reg.name)
-        #test(push, [reg+0x100], 'push [%s+0x100]' % reg.name)
-        #test(push, [reg+0x10000], 'push [%s+0x10000]' % reg.name)
-        #test(push, [reg+rax*2+0x1], 'push [%s+rax*2+0x1]' % reg.name)
-        #test(push, [reg+rax*2+0x100], 'push [%s+rax*2+0x100]' % reg.name)
-        #test(push, [reg+rax*2+0x10000], 'push [%s+rax*2+0x10000]' % reg.name)
-        #test(push, [reg+rax*2], 'push [%s+rax*2]' % reg.name)
-        #test(push, [0x1], 'push [0x1]' % reg.name)
-        #test(push, [0x100], 'push [0x100]' % reg.name)
-        #test(push, [0x10000], 'push [0x10000]' % reg.name)
-        
-        #assert push(reg) == as_code('push %s' % reg.name)
-        #assert push(reg+0x1000) == as_code('push %s+0x1000' % reg.name)
-        
-    assert push(rbp) == as_code('pushq rbp')
-    #assert push(rax) == as_code('push rax')
+    reg = rax
+    # can we push a register?
+    test(push, reg, 'push %s' % reg.name)
+    
+    # can we push immediate values?
+    test(push, reg, 'push %s' % reg.name)        
+    
+    # can we push from memory? 
+    for py,asm in addresses(reg):
+        test(push, py, 'push '+asm)
 
 def test_pop():
     assert pop(rbp) == as_code('popq rbp')
@@ -226,3 +209,17 @@ def test_syscall():
 def test_int():
     assert int_(0x80) == as_code('int 0x80')
 
+
+
+# Extensive address encoding test
+def test_push():
+    for reg in regs['gp']:
+        # can we push a register?
+        test(push, reg, 'push %s' % reg.name)
+        
+        # can we push immediate values?
+        test(push, reg, 'push %s' % reg.name)        
+        
+        # can we push from memory? 
+        for py,asm in addresses(reg):
+            test(push, py, 'push '+asm)
