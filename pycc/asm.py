@@ -580,6 +580,8 @@ class Pointer(object):
             
             if base is None:
                 base = rbp
+                mod = 'ind'
+                disp = disp + '\0' * (4-len(disp))
             
             mrex, modrm = mod_reg_rm(mod, reg, 'sib')
             srex, sib = mk_sib(byts, offset, base)

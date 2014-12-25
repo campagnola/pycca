@@ -43,6 +43,7 @@ def addresses(base):
             yield [base + disp], '[%s + 0x%x]' % (base.name, disp)
             yield [base + offset + disp], '[%s + %s + 0x%x]' % (base.name, offset.name, disp)
             yield [base + offset*2 + disp], '[%s + %s*2 + 0x%x]' % (base.name, offset.name, disp)
+            yield [offset*2 + disp], '[%s*2 + 0x%x]' % (offset.name, disp)
             yield [disp], '[0x%x]' % disp
 
 
@@ -58,7 +59,7 @@ def addresses(base):
 
     ## test that we can generate a variety of mod_r/m+sib+disp strings
     #assert (interpret([rax])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax]')[2:]
-    #assert (rbx + rax).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax + rbx]')[2:]
+    #assert (rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax + rbx]')[2:]
     #assert (8*rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax*8 + rbx]')[2:]
     #assert (rbx + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbx + 4*rcx + 0x1000]')[2:]
     #assert (interpret([0x1000])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000]')[2:]
