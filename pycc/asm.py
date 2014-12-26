@@ -1029,7 +1029,6 @@ def instruction(modes, operand_enc, *args):
 #----------------------------------------
 
 
-# Attempt at completely general implementation of push
 def push(*args):
     """Push register, memory, or immediate onto the stack.
     
@@ -1119,50 +1118,85 @@ def leave():
     """
     return '\xc9'
 
-def call(op):
-    """CALL op
-    
-    Push EIP onto stack and branch to address specified in *op*.
-    
-    If op is a signed int (16 or 32 bits), this generates a near, relative call
-    where the displacement given in op is relative to the next instruction.
-    
-    If op is a Register then this generates a near, absolute call where the 
-    absolute offset is read from the register.
-    """
-    if isinstance(op, Register):
-        return call_abs(op)
-    elif isinstance(op, int):
-        return call_rel(op)
-    else:
-        raise TypeError("call argument must be int or Register")
 
-def call_abs(reg):
-    """CALL (absolute) 
+def call(*args):
+    """Saves procedure linking information on the stack and branches to the 
+    called procedure specified using the target operand. 
     
-    Opcode: 0xff /2
-    
+    The target operand specifies the address of the first instruction in the 
+    called procedure. The operand can be an immediate value, a general-purpose 
+    register, or a memory location.
     """
-    # note: opcode extension 2 is encoded in bits 3-5 of the next byte
-    #       (this is the reg field of mod_reg_r/m)
-    #       the mod bits 00 and r/m bits 101 indicate a 32-bit displacement follows.
-    if reg.bits == 32:
-        return '\xff' + mod_reg_rm('dir', 0b010, reg)
+    if len(args) != 1:
+        raise TypeError("call requires exactly 1 argument")
+    if isinstance(args[0], int):
+        # Manually generate relative call
+        return '\xe8' + struct.pack('i', args[0]-5)
+    elif isinstance(args[0], str):
+        # Generate relative call to label
+        code = Code('\xe8' + '\x00\x00\x00\x00')
+        code.replace(1, "%s - next_instr_addr" % args[0], 'i')
+        return code
     else:
-        return '\xff' + mod_reg_rm('dir', 0b010, reg)
+        # generate absolute call
+        modes = {
+            #('rel16',): ['e8', 'm', False, True],
+            #('rel32',): ['e8', 'm', True, True],
+            ('r/m16',): ['ff /2', 'm', False, True],
+            ('r/m32',): ['ff /2', 'm', False, True],
+            ('r/m64',): ['ff /2', 'm', True, False],
+        }
+        
+        operand_enc = {
+            'm': ['ModRM:r/m (r)'],
+        }
+        
+        return instruction(modes, operand_enc, *args)
+
+#def call(op):
+    #"""CALL op
+    
+    #Push EIP onto stack and branch to address specified in *op*.
+    
+    #If op is a signed int (16 or 32 bits), this generates a near, relative call
+    #where the displacement given in op is relative to the next instruction.
+    
+    #If op is a Register then this generates a near, absolute call where the 
+    #absolute offset is read from the register.
+    #"""
+    #if isinstance(op, Register):
+        #return call_abs(op)
+    #elif isinstance(op, int):
+        #return call_rel(op)
+    #else:
+        #raise TypeError("call argument must be int or Register")
+
+#def call_abs(reg):
+    #"""CALL (absolute) 
+    
+    #Opcode: 0xff /2
+    
+    #"""
+    ## note: opcode extension 2 is encoded in bits 3-5 of the next byte
+    ##       (this is the reg field of mod_reg_r/m)
+    ##       the mod bits 00 and r/m bits 101 indicate a 32-bit displacement follows.
+    #if reg.bits == 32:
+        #return '\xff' + mod_reg_rm('dir', 0b010, reg)
+    #else:
+        #return '\xff' + mod_reg_rm('dir', 0b010, reg)
         
         
-def call_rel(addr):
-    """CALL (relative) 
+#def call_rel(addr):
+    #"""CALL (relative) 
     
-    Opcode: 0xe8 cd  (cd indicates 4-byte argument follows opcode)
+    #Opcode: 0xe8 cd  (cd indicates 4-byte argument follows opcode)
     
-    Note: addr is signed int relative to _next_ instruction pointer 
-          (which should be current instruction pointer + 5, since this is a
-          5 byte instruction).
-    """
-    # Note: there is no 64-bit relative call.
-    return '\xe8' + struct.pack('i', addr-5)
+    #Note: addr is signed int relative to _next_ instruction pointer 
+          #(which should be current instruction pointer + 5, since this is a
+          #5 byte instruction).
+    #"""
+    ## Note: there is no 64-bit relative call.
+    #return '\xe8' + struct.pack('i', addr-5)
 
 
 
@@ -1680,8 +1714,8 @@ def run_as(asm):
     #print cmd
     out = subprocess.check_output(cmd, shell=True).split('\n')
     for i,line in enumerate(out):
-        if "<.text>:" in line:
-            return out[i+1:]
+        if "Disassembly of section .text:" in line:
+            return out[i+3:]
     print "--- code: ---"
     print asm
     print "-------------"
