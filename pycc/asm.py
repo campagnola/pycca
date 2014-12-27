@@ -838,58 +838,6 @@ def interpret(arg):
         return arg
 
 
-#class Instruction(object):
-    #def __init__(self, a=None, b=None, opcode=None, ext=None, modrm=True):
-        #self.args = [a, b]
-        #self.opcode = opcode
-        #self.ext = ext
-        #self.imm_fmt = 'i'
-        #self.modrm = modrm
-
-        #self.argtypes = []
-        #for arg in self.args:
-            #arg = interpret(arg)
-            #if isinstance(arg, Register):
-                #self.argtypes.append('r')
-            #elif isinstance(arg, Pointer):
-                #self.argtypes.append('m')
-            #elif isinstance(arg, (int, str)):
-                #self.argtypes.append('i')
-            #else:
-                #raise TypeError("Instruction arguments may be Pointer, "
-                                #"Register, int, or str.")
-
-    #@property
-    #def code(self):
-        #prefix = ''
-        #opcode = self.opcode
-        #modrm = ''
-        #imm = ''
-        #a, b = self.args
-        
-        #if self.modrm:
-            #if self.ext is None:
-                #modrm = ModRmSib(a, b)
-                #imm = ''
-            #else:
-                #modrm = ModRmSib(self.ext, a)
-                #imm = struct.pack(self.imm_fmt, b)
-            #if ARCH == 64:
-                #if modrm.argbits[0] == 16:
-                    #prefix += '\x66'
-                #if modrm.argbits[1] == 32:
-                    #prefix += '\x67'
-                #if modrm.argbits[0] == 64:
-                    #prefix += rex.w
-            #else:
-                #raise NotImplementedError("only implemented for 64bit")
-            #modrm = modrm.code
-        #else:
-            #modrm = ''
-        
-        #return prefix + opcode + modrm.code + imm
-
-
 def get_instruction_mode(sig, modes):
     """For a given signature of operand types, return an appropriate 
     instruction mode.
@@ -898,10 +846,10 @@ def get_instruction_mode(sig, modes):
     if sig in modes:
         return sig
     
-    if sig[:2] == ('r', 'r'):
-        sig = ('r', 'r/m') + sig[2:]
-        if sig in modes:
-            return sig
+    #if sig[:2] == ('r', 'r'):
+        #sig = ('r', 'r/m') + sig[2:]
+        #if sig in modes:
+            #return sig
     
     if sig[-1].startswith('imm'):
         size = int(sig[-1][3:])
@@ -910,6 +858,34 @@ def get_instruction_mode(sig, modes):
             sig = sig[:-1] + ('imm%d' % size,)
             if sig in modes:
                 return sig
+    
+    # Check each instruction mode one at a time to see whether it is compatible
+    # with supplied arguments.
+    for mode in modes:
+        if len(mode) != len(sig):
+            continue
+        usemode = True
+        for i in range(len(mode)):
+            sbits = sig[i].lstrip('ir/m')
+            stype = sig[i][:-len(sbits)]
+            mbits = mode[i].lstrip('ir/m')
+            mtype = mode[i][:-len(mbits)]
+            
+            if mtype == 'r':
+                if stype != 'r' or mbits != sbits:
+                    usemode = False
+                    break
+            elif mtype == 'r/m':
+                if stype not in ('r', 'r/m') or mbits != sbits:
+                    usemode = False
+                    break
+            elif mtype == 'imm':
+                if stype != 'imm' or mbits < sbits:
+                    usemode = False
+                    break
+        if usemode:
+            return mode
+    
     
     raise TypeError('Argument types not accepted for this instruction: %s' 
                     % str(orig_sig))
@@ -983,7 +959,6 @@ def instruction(modes, operand_enc, *args):
     imm = None
     
     # encode operands
-    operands = []
     for i,arg in enumerate(clean_args):
         # look up encoding for this operand
         enc = operand_enc[mode[1][i]][i]
@@ -997,9 +972,10 @@ def instruction(modes, operand_enc, *args):
             rm = arg
             if arg.bits == 16:
                 prefixes.append('\x66')
-            addrpfx = arg.prefix
-            if addrpfx != '':
-                prefixes.append(addrpfx)  # adds 0x67 prefix if needed
+            if isinstance(arg, Pointer):
+                addrpfx = arg.prefix
+                if addrpfx != '':
+                    prefixes.append(addrpfx)  # adds 0x67 prefix if needed
         elif enc == 'ModRM:reg (r)':
             reg = arg
         elif enc.startswith('imm'):
@@ -1008,9 +984,10 @@ def instruction(modes, operand_enc, *args):
             assert opsize <= immsize
             imm = arg + '\0'*((immsize-opsize)//8)
             
+    operands = []
     if reg is not None:
         modrm = ModRmSib(reg, rm)
-        operands.append(modrm.code)
+        operands.append(modrm.code[1])
         rex_byt |= modrm.rex
         
     if imm is not None:
