@@ -42,6 +42,7 @@ import struct
 import subprocess
 import tempfile
 import math
+import collections
 
 if sys.maxsize > 2**32:
     ARCH = 64
@@ -851,17 +852,19 @@ def get_instruction_mode(sig, modes):
         #if sig in modes:
             #return sig
     
-    if sig[-1].startswith('imm'):
-        size = int(sig[-1][3:])
-        while size < 64:
-            size *= 2
-            sig = sig[:-1] + ('imm%d' % size,)
-            if sig in modes:
-                return sig
+    #if sig[-1].startswith('imm'):
+        #size = int(sig[-1][3:])
+        #while size < 64:
+            #size *= 2
+            #sig = sig[:-1] + ('imm%d' % size,)
+            #if sig in modes:
+                #return sig
+    #sig = orig_sig
     
     # Check each instruction mode one at a time to see whether it is compatible
     # with supplied arguments.
     for mode in modes:
+        print "check:", sig, mode
         if len(mode) != len(sig):
             continue
         usemode = True
@@ -870,6 +873,8 @@ def get_instruction_mode(sig, modes):
             stype = sig[i][:-len(sbits)]
             mbits = mode[i].lstrip('ir/m')
             mtype = mode[i][:-len(mbits)]
+            mbits = int(mbits)
+            sbits = int(sbits)
             
             if mtype == 'r':
                 if stype != 'r' or mbits != sbits:
@@ -883,6 +888,9 @@ def get_instruction_mode(sig, modes):
                 if stype != 'imm' or mbits < sbits:
                     usemode = False
                     break
+            else:
+                raise Exception("operand type %s" % mtype)
+        
         if usemode:
             return mode
     
@@ -935,6 +943,11 @@ def instruction(modes, operand_enc, *args):
     
     # parse opcode string (todo: these should be pre-parsed)
     op_parts = mode[0].split(' ')
+    rexw = False
+    if op_parts[:2] == ['REX.W', '+']:
+        op_parts = op_parts[2:]
+        rexw = True
+    
     opcode_s = op_parts[0]
     if '+' in opcode_s:
         opcode_s = opcode_s.partition('+')[0]
@@ -950,7 +963,9 @@ def instruction(modes, operand_enc, *args):
     # check for opcode extension
     opcode_ext = None
     if len(op_parts) > 1:
-        if op_parts[1][0] == '/':
+        if op_parts[1] == '/r':
+            pass  # handled by operand encoding
+        elif op_parts[1][0] == '/':
             opcode_ext = int(op_parts[1][1])
 
     # initialize modrm and imm 
@@ -961,14 +976,14 @@ def instruction(modes, operand_enc, *args):
     # encode operands
     for i,arg in enumerate(clean_args):
         # look up encoding for this operand
-        enc = operand_enc[mode[1][i]][i]
+        enc = operand_enc[mode[1]][i]
         if enc == 'opcode +rd (r)':
             opcode = opcode[:-1] + chr(ord(opcode[-1]) | arg.val)
             if arg.rex:
                 rex_byt = rex_byt | rex.b
             if arg.bits == 16:
                 prefixes.append('\x66')
-        elif enc == 'ModRM:r/m (r)':
+        elif enc.startswith('ModRM:r/m'):
             rm = arg
             if arg.bits == 16:
                 prefixes.append('\x66')
@@ -976,14 +991,16 @@ def instruction(modes, operand_enc, *args):
                 addrpfx = arg.prefix
                 if addrpfx != '':
                     prefixes.append(addrpfx)  # adds 0x67 prefix if needed
-        elif enc == 'ModRM:reg (r)':
+        elif enc.startswith('ModRM:reg'):
             reg = arg
         elif enc.startswith('imm'):
             immsize = int(use_sig[i][3:])
             opsize = 8 * len(arg)
             assert opsize <= immsize
             imm = arg + '\0'*((immsize-opsize)//8)
-            
+        else:
+            raise RuntimeError("Invalid operand encoding: %s" % enc)
+        
     operands = []
     if reg is not None:
         modrm = ModRmSib(reg, rm)
@@ -992,7 +1009,10 @@ def instruction(modes, operand_enc, *args):
         
     if imm is not None:
         operands.append(imm)
-                
+    
+    if rexw:
+        rex_byt |= rex.w
+    
     if rex_byt == 0:
         rex_byt = ''
     else:
@@ -1306,54 +1326,96 @@ def movsd(dst, src):
 
 
 def add(dst, src):
-    """Perform integer addition of dst + src and store the result in dst.
+    """Adds the destination operand (first operand) and the source operand 
+    (second operand) and then stores the result in the destination operand. 
+    
+    The destination operand can be a register or a memory location; the source
+    operand can be an immediate, a register, or a memory location. (However, 
+    two memory operands cannot be used in one instruction.) When an immediate 
+    value is used as an operand, it is sign-extended to the length of the 
+    destination operand format.
     """
-    dst = interpret(dst)
-    src = interpret(src)
+    modes = collections.OrderedDict([
+        (('r/m8', 'imm8'),   ['80 /0', 'mi', True, True]),
+        (('r/m16', 'imm16'), ['81 /0', 'mi', True, True]),
+        (('r/m32', 'imm32'), ['81 /0', 'mi', True, True]),
+        (('r/m64', 'imm32'), ['REX.W + 81 /0', 'mi', True, False]),
+        
+        (('r/m16', 'imm8'),  ['83 /0', 'mi', True, True]),
+        (('r/m32', 'imm8'),  ['83 /0', 'mi', True, True]),
+        (('r/m64', 'imm8'),  ['REX.W + 83 /0', 'mi', True, False]),        
+        
+        (('r/m8', 'r8'),   ['00 /r', 'mr', True, True]),
+        (('r/m16', 'r16'), ['01 /r', 'mr', True, True]),
+        (('r/m32', 'r32'), ['01 /r', 'mr', True, True]),
+        (('r/m64', 'r64'), ['REX.W + 01 /r', 'mr', True, False]),
+        
+        (('r8', 'r/m8'),   ['02 /r', 'rm', True, True]),
+        (('r16', 'r/m16'),   ['03 /r', 'rm', True, True]),
+        (('r32', 'r/m32'),   ['03 /r', 'rm', True, True]),
+        (('r64', 'r/m64'),   ['REX.W + 03 /r', 'rm', True, False]),
+        
+    ])
     
-    if isinstance(dst, Pointer):
-        if isinstance(src, Register):
-            return add_ptr_reg(dst, src)
-        elif isinstance(src, (int, long)):
-            return add_ptr_imm(dst, src)
-        else:
-            raise TypeError('src must be Register or int if dst is Pointer')
-    elif isinstance(dst, Register):
-        if isinstance(src, Register):
-            return add_reg_reg(dst, src)
-        elif isinstance(src, Pointer):
-            return add_reg_ptr(dst, src)
-        elif isinstance(src, (int, long)):
-            return add_reg_imm(dst, src)
-        else:
-            raise TypeError('src must be Register, Pointer, or int')
-    else:
-        raise TypeError('dst must be Register or Pointer')
+    operand_enc = {
+        'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
+        'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
+        'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
+    }
+    
+    return instruction(modes, operand_enc, dst, src)
+    
 
-def add_reg_imm(reg, val):
-    """ADD REG, imm32
-    
-    Opcode: REX.W 0x81 /0 id
-    """
-    return rex.w + '\x81' + mod_reg_rm('dir', 0x0, reg) + struct.pack('i', val)
-    
-def add_reg_reg(reg1, reg2):
-    """ ADD r/m64 r64
-    
-    Opcode: REX.W 0x01 /r
-    """
-    return rex.w + '\x01' + mod_reg_rm('dir', reg2, reg1)
 
-def add_reg_ptr(reg, addr):
-    modrm = ModRmSib(reg, addr)
-    return '\x03' + modrm.code
-
-def add_ptr_imm(addr, val):
-    return '\x81' + addr.modrm_sib(0x0) + struct.pack('i', val)
+#def add(dst, src):
+    #"""Perform integer addition of dst + src and store the result in dst.
+    #"""
+    #dst = interpret(dst)
+    #src = interpret(src)
     
-def add_ptr_reg(addr, reg):
-    modrm = ModRmSib(reg, addr)
-    return '\x01' + modrm.code
+    #if isinstance(dst, Pointer):
+        #if isinstance(src, Register):
+            #return add_ptr_reg(dst, src)
+        #elif isinstance(src, (int, long)):
+            #return add_ptr_imm(dst, src)
+        #else:
+            #raise TypeError('src must be Register or int if dst is Pointer')
+    #elif isinstance(dst, Register):
+        #if isinstance(src, Register):
+            #return add_reg_reg(dst, src)
+        #elif isinstance(src, Pointer):
+            #return add_reg_ptr(dst, src)
+        #elif isinstance(src, (int, long)):
+            #return add_reg_imm(dst, src)
+        #else:
+            #raise TypeError('src must be Register, Pointer, or int')
+    #else:
+        #raise TypeError('dst must be Register or Pointer')
+
+#def add_reg_imm(reg, val):
+    #"""ADD REG, imm32
+    
+    #Opcode: REX.W 0x81 /0 id
+    #"""
+    #return rex.w + '\x81' + mod_reg_rm('dir', 0x0, reg) + struct.pack('i', val)
+    
+#def add_reg_reg(reg1, reg2):
+    #""" ADD r/m64 r64
+    
+    #Opcode: REX.W 0x01 /r
+    #"""
+    #return rex.w + '\x01' + mod_reg_rm('dir', reg2, reg1)
+
+#def add_reg_ptr(reg, addr):
+    #modrm = ModRmSib(reg, addr)
+    #return '\x03' + modrm.code
+
+#def add_ptr_imm(addr, val):
+    #return '\x81' + addr.modrm_sib(0x0) + struct.pack('i', val)
+    
+#def add_ptr_reg(addr, reg):
+    #modrm = ModRmSib(reg, addr)
+    #return '\x01' + modrm.code
 
 def lea(a, b):
     """ LEA r,[base+offset+disp]

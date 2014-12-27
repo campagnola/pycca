@@ -148,8 +148,8 @@ def test_call():
 def test_add():
     assert add(rax, rbx) == as_code('add rax, rbx')
     assert add(rbx, 0x1000) == as_code('add rbx, 0x1000')
-    assert add([0x1000], eax) == as_code('add dword ptr [0x1000], eax')
-    assert add(eax, [0x1000]) == as_code('add eax, dword ptr [0x1000]')
+    assert add(dword([0x1000]), eax) == as_code('add dword ptr [0x1000], eax')
+    assert add(eax, dword([0x1000])) == as_code('add eax, dword ptr [0x1000]')
     #assert add([0x1000], rax) == as_code('add qword ptr [0x1000], rax')
     #assert add(rax, [0x1000]) == as_code('add rax, qword ptr [0x1000]')
     assert add([0x1000], 0x1000) == as_code('add dword ptr [0x1000], 0x1000')
