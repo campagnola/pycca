@@ -280,17 +280,17 @@ class ModRmSib(object):
         
         self.rex = 0
         if self.argtypes in ('rr', 'xr'):
-            self.code = mod_reg_rm('dir', a, b)
+            rex_byt, self.code = mod_reg_rm('dir', a, b)
             if self.argtypes != 'xr' and a.rex:
                 self.rex |= rex.r
             if b.rex: 
                 self.rex |= rex.b
         elif self.argtypes == 'mr':
-            rex, self.code = a.modrm_sib(b)
-            self.rex |= rex
+            rex_byt, self.code = a.modrm_sib(b)
+            self.rex |= rex_byt
         elif self.argtypes in ('rm', 'xm'):
-            rex, self.code = b.modrm_sib(a)
-            self.rex |= rex
+            rex_byt, self.code = b.modrm_sib(a)
+            self.rex |= rex_byt
         else:
             raise TypeError('Invalid argument types: %s, %s' % (type(a), type(b)))
 
@@ -301,7 +301,7 @@ class ModRmSib(object):
             self.argbits = (None, b.bits)
             self.bits = b.bits
 
-        
+        assert isinstance(self.code, str)
     
     
 
@@ -864,7 +864,6 @@ def get_instruction_mode(sig, modes):
     # Check each instruction mode one at a time to see whether it is compatible
     # with supplied arguments.
     for mode in modes:
-        print "check:", sig, mode
         if len(mode) != len(sig):
             continue
         usemode = True
@@ -927,6 +926,9 @@ def instruction(modes, operand_enc, *args):
     # Match this to an appropriate function signature
     use_sig = get_instruction_mode(sig, modes)
     mode = modes[use_sig]
+    #print "Requested signature:", sig
+    #print "Supported signature:", use_sig
+    #print "Selected instruction mode:", mode
     
     # Make sure this signature is supported for this architecture
     if ARCH == 64 and mode[2] is False:
@@ -977,6 +979,7 @@ def instruction(modes, operand_enc, *args):
     for i,arg in enumerate(clean_args):
         # look up encoding for this operand
         enc = operand_enc[mode[1]][i]
+        #print "operand encoding:", i, arg, enc 
         if enc == 'opcode +rd (r)':
             opcode = opcode[:-1] + chr(ord(opcode[-1]) | arg.val)
             if arg.rex:
@@ -1002,9 +1005,9 @@ def instruction(modes, operand_enc, *args):
             raise RuntimeError("Invalid operand encoding: %s" % enc)
         
     operands = []
-    if reg is not None:
+    if rm is not None:
         modrm = ModRmSib(reg, rm)
-        operands.append(modrm.code[1])
+        operands.append(modrm.code)
         rex_byt |= modrm.rex
         
     if imm is not None:
