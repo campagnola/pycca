@@ -155,12 +155,12 @@ def test_add():
     assert add(dword([0x1000]), 0x1000) == as_code('add dword ptr [0x1000], 0x1000')
     
 def test_dec():
-    assert dec([0x1000]) == as_code('dec dword ptr [0x1000]')
+    assert dec(dword([0x1000])) == as_code('dec dword ptr [0x1000]')
     assert dec(eax) == as_code('dec eax')
     assert dec(rax) == as_code('dec rax')
 
 def test_inc():
-    assert inc([0x1000]) == as_code('inc dword ptr [0x1000]')
+    assert inc(dword([0x1000])) == as_code('inc dword ptr [0x1000]')
     assert inc(eax) == as_code('inc eax')
     assert inc(rax) == as_code('inc rax')
 

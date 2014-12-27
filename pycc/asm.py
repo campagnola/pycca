@@ -843,6 +843,12 @@ def get_instruction_mode(sig, modes):
     """For a given signature of operand types, return an appropriate 
     instruction mode.
     """
+    # filter out modes not supported by this arch
+    archind = 2 if ARCH == 64 else 3
+    modes = collections.OrderedDict([sm for sm in modes.items() if sm[1][archind]])
+    
+    #print "Select instruction mode for sig:", sig
+    #print "Available modes:", modes
     orig_sig = sig
     if sig in modes:
         return sig
@@ -1444,28 +1450,80 @@ def lea(a, b):
     
 
 def dec(op):
-    """ DEC r/m
+    """Subtracts 1 from the destination operand, while preserving the state of
+    the CF flag. 
     
-    Decrement r/m by 1
-    Opcode: ff /1
+    The destination operand can be a register or a memory location. This
+    instruction allows a loop counter to be updated without disturbing the CF
+    flag. (To perform a decrement operation that updates the CF flag, use a SUB
+    instruction with an immediate operand of 1.)
     """
-    modrm = ModRmSib(0x1, op)
-    if modrm.bits == 64:
-        return rex.w + '\xff' + modrm.code
-    else:
-        return '\xff' + modrm.code
+    modes = collections.OrderedDict([
+        (('r/m8',),  ['fe /1', 'm', True, True]),
+        (('r/m16',), ['ff /1', 'm', True, True]),
+        (('r/m32',), ['ff /1', 'm', True, True]),
+        (('r/m64',), ['REX.W + ff /1', 'm', True, False]),
+        
+        (('r16',),  ['48+rw', 'o', False, True]),
+        (('r32',),  ['48+rd', 'o', False, True]),
+    ])
+    
+    operand_enc = {
+        'm': ['ModRM:r/m (r,w)'],
+        'o': ['opcode + rd (r, w)'],
+    }
+    
+    return instruction(modes, operand_enc, op)
+    
+#def dec(op):
+    #""" DEC r/m
+    
+    #Decrement r/m by 1
+    #Opcode: ff /1
+    #"""
+    #modrm = ModRmSib(0x1, op)
+    #if modrm.bits == 64:
+        #return rex.w + '\xff' + modrm.code
+    #else:
+        #return '\xff' + modrm.code
 
 def inc(op):
-    """ INC r/m
+    """Adds 1 to the destination operand, while preserving the state of the CF
+    flag. 
     
-    Increment r/m by 1
-    Opcode: ff /0
+    The destination operand can be a register or a memory location. This
+    instruction allows a loop counter to be updated without disturbing the CF
+    flag. (Use a ADD instruction with an immediate operand of 1 to perform an
+    increment operation that does updates the CF flag.)
     """
-    modrm = ModRmSib(0x0, op)
-    if modrm.bits == 64:
-        return rex.w + '\xff' + modrm.code
-    else:
-        return '\xff' + modrm.code
+    modes = collections.OrderedDict([
+        (('r/m8',),  ['fe /0', 'm', True, True]),
+        (('r/m16',), ['ff /0', 'm', True, True]),
+        (('r/m32',), ['ff /0', 'm', True, True]),
+        (('r/m64',), ['REX.W + ff /0', 'm', True, False]),
+        
+        (('r16',),  ['40+rw', 'o', False, True]),
+        (('r32',),  ['40+rd', 'o', False, True]),
+    ])
+    
+    operand_enc = {
+        'm': ['ModRM:r/m (r,w)'],
+        'o': ['opcode + rd (r, w)'],
+    }
+    
+    return instruction(modes, operand_enc, op)
+
+#def inc(op):
+    #""" INC r/m
+    
+    #Increment r/m by 1
+    #Opcode: ff /0
+    #"""
+    #modrm = ModRmSib(0x0, op)
+    #if modrm.bits == 64:
+        #return rex.w + '\xff' + modrm.code
+    #else:
+        #return '\xff' + modrm.code
 
 def imul(a, b):
     """ IMUL reg, r/m
