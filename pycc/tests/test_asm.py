@@ -126,7 +126,7 @@ def test_push():
         test(push, py, 'push '+asm)
 
 def test_pop():
-    assert pop(rbp) == as_code('popq rbp')
+    assert pop(rbp) == as_code('pop rbp')
     #assert pop(rax) == as_code('pop rax')
 
 def test_ret():

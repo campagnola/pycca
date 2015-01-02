@@ -839,195 +839,207 @@ def interpret(arg):
         return arg
 
 
-def get_instruction_mode(sig, modes):
-    """For a given signature of operand types, return an appropriate 
-    instruction mode.
-    """
-    # filter out modes not supported by this arch
-    archind = 2 if ARCH == 64 else 3
-    modes = collections.OrderedDict([sm for sm in modes.items() if sm[1][archind]])
-    
-    #print "Select instruction mode for sig:", sig
-    #print "Available modes:", modes
-    orig_sig = sig
-    if sig in modes:
-        return sig
-    
-    #if sig[:2] == ('r', 'r'):
-        #sig = ('r', 'r/m') + sig[2:]
-        #if sig in modes:
-            #return sig
-    
-    #if sig[-1].startswith('imm'):
-        #size = int(sig[-1][3:])
-        #while size < 64:
-            #size *= 2
-            #sig = sig[:-1] + ('imm%d' % size,)
-            #if sig in modes:
-                #return sig
-    #sig = orig_sig
-    
-    # Check each instruction mode one at a time to see whether it is compatible
-    # with supplied arguments.
-    for mode in modes:
-        if len(mode) != len(sig):
-            continue
-        usemode = True
-        for i in range(len(mode)):
-            sbits = sig[i].lstrip('ir/m')
-            stype = sig[i][:-len(sbits)]
-            mbits = mode[i].lstrip('ir/m')
-            mtype = mode[i][:-len(mbits)]
-            mbits = int(mbits)
-            sbits = int(sbits)
-            
-            if mtype == 'r':
-                if stype != 'r' or mbits != sbits:
-                    usemode = False
-                    break
-            elif mtype == 'r/m':
-                if stype not in ('r', 'r/m') or mbits != sbits:
-                    usemode = False
-                    break
-            elif mtype == 'imm':
-                if stype != 'imm' or mbits < sbits:
-                    usemode = False
-                    break
-            else:
-                raise Exception("operand type %s" % mtype)
+
+class Instruction(object):
+    def __init__(self, modes, operand_enc, *args):
+        self.modes = modes
+        self.operand_enc = operand_enc
+        self.args = args
         
-        if usemode:
-            return mode
-    
-    
-    raise TypeError('Argument types not accepted for this instruction: %s' 
-                    % str(orig_sig))
+        self.read_signature()
+        self.select_instruction_mode()
+        self.generate_code()
+        
+    def read_signature(self):
+        """Determine signature of argument types.
+        
+        Sets self.sig to a tuple of strings like 'r32', 'r/m64', and 'imm8'
+        Sets self.clean_args to a tuple of arguments that have been processed:
+            - lists are converted to Pointer
+            - ints are converted to packed string
+        """
+        sig = []
+        clean_args = []
+        for arg in self.args:
+            if isinstance(arg, list):
+                arg = interpret(arg)
+                
+            if isinstance(arg, Register):
+                sig.append('r%d' % arg.bits)
+            elif isinstance(arg, Pointer):
+                sig.append('r/m%d' % arg.bits)
+            elif isinstance(arg, int):
+                arg = pack_int(arg, int8=True)
+                sig.append('imm%d' % (8*len(arg)))
+            elif isinstance(arg, str):
+                sig.append('imm%d' % len(arg))
+            else:
+                raise TypeError("Invalid argument type %s." % type(arg))
+            clean_args.append(arg)
+        
+        self.sig = tuple(sig)
+        self.clean_args = tuple(clean_args)
+
+    def select_instruction_mode(self):
+        """Select a compatible instruction mode from self.modes based on the 
+        signature of arguments provided.
+        
+        Sets self.use_sig to the compatible signature selected.
+        Sets self.mode to the instruction mode selected.
+        """
+        modes = self.modes
+        sig = self.sig
+        
+        # filter out modes not supported by this arch
+        archind = 2 if ARCH == 64 else 3
+        modes = collections.OrderedDict([sm for sm in modes.items() if sm[1][archind]])
+        
+        #print "Select instruction mode for sig:", sig
+        #print "Available modes:", modes
+        orig_sig = sig
+        if sig in modes:
+            self.use_sig = sig
+            self.mode = modes[sig]
+            return
+        
+        # Check each instruction mode one at a time to see whether it is compatible
+        # with supplied arguments.
+        for mode in modes:
+            if len(mode) != len(sig):
+                continue
+            usemode = True
+            for i in range(len(mode)):
+                sbits = sig[i].lstrip('ir/m')
+                stype = sig[i][:-len(sbits)]
+                mbits = mode[i].lstrip('ir/m')
+                mtype = mode[i][:-len(mbits)]
+                mbits = int(mbits)
+                sbits = int(sbits)
+                
+                if mtype == 'r':
+                    if stype != 'r' or mbits != sbits:
+                        usemode = False
+                        break
+                elif mtype == 'r/m':
+                    if stype not in ('r', 'r/m') or mbits != sbits:
+                        usemode = False
+                        break
+                elif mtype == 'imm':
+                    if stype != 'imm' or mbits < sbits:
+                        usemode = False
+                        break
+                else:
+                    raise Exception("operand type %s" % mtype)
+            
+            if usemode:
+                self.use_sig = mode
+                self.mode = modes[mode]
+                return
+        
+        raise TypeError('Argument types not accepted for this instruction: %s' 
+                        % str(orig_sig))
+
+    def generate_code(self):
+        """Generate complete bytecode for this instruction.
+        
+        Sets self.code.
+        """
+        mode = self.mode
+        clean_args = self.clean_args
+        operand_enc = self.operand_enc
+        use_sig = self.use_sig
+        
+        # Start encoding instruction
+        # extract encoding for opcode
+        prefixes = []
+        rex_byt = 0
+        
+        # parse opcode string (todo: these should be pre-parsed)
+        op_parts = mode[0].split(' ')
+        rexw = False
+        if op_parts[:2] == ['REX.W', '+']:
+            op_parts = op_parts[2:]
+            rexw = True
+        
+        opcode_s = op_parts[0]
+        if '+' in opcode_s:
+            opcode_s = opcode_s.partition('+')[0]
+            reg_in_opcode = True
+        else:
+            reg_in_opcode = False
+        
+        # assemble initial opcode
+        opcode = ''
+        for i in range(0, len(opcode_s), 2):
+            opcode += chr(int(opcode_s[i:i+2], 16))
+        
+        # check for opcode extension
+        opcode_ext = None
+        if len(op_parts) > 1:
+            if op_parts[1] == '/r':
+                pass  # handled by operand encoding
+            elif op_parts[1][0] == '/':
+                opcode_ext = int(op_parts[1][1])
+
+        # initialize modrm and imm 
+        reg = opcode_ext
+        rm = None
+        imm = None
+        
+        # encode operands
+        for i,arg in enumerate(clean_args):
+            # look up encoding for this operand
+            enc = operand_enc[mode[1]][i]
+            #print "operand encoding:", i, arg, enc 
+            if enc == 'opcode +rd (r)':
+                opcode = opcode[:-1] + chr(ord(opcode[-1]) | arg.val)
+                if arg.rex:
+                    rex_byt = rex_byt | rex.b
+                if arg.bits == 16:
+                    prefixes.append('\x66')
+            elif enc.startswith('ModRM:r/m'):
+                rm = arg
+                if arg.bits == 16:
+                    prefixes.append('\x66')
+                if isinstance(arg, Pointer):
+                    addrpfx = arg.prefix
+                    if addrpfx != '':
+                        prefixes.append(addrpfx)  # adds 0x67 prefix if needed
+            elif enc.startswith('ModRM:reg'):
+                reg = arg
+            elif enc.startswith('imm'):
+                immsize = int(use_sig[i][3:])
+                opsize = 8 * len(arg)
+                assert opsize <= immsize
+                imm = arg + '\0'*((immsize-opsize)//8)
+            else:
+                raise RuntimeError("Invalid operand encoding: %s" % enc)
+            
+        operands = []
+        if rm is not None:
+            modrm = ModRmSib(reg, rm)
+            operands.append(modrm.code)
+            rex_byt |= modrm.rex
+            
+        if imm is not None:
+            operands.append(imm)
+        
+        if rexw:
+            rex_byt |= rex.w
+        
+        if rex_byt == 0:
+            rex_byt = ''
+        else:
+            rex_byt = chr(rex_byt)
+        
+        self.code = ''.join(prefixes) + rex_byt + opcode + ''.join(operands)
 
 
 def instruction(modes, operand_enc, *args):
     """Generic function for encoding an instruction given information from
     the intel reference and the operands.
     """
-    # Determine signature of arguments provided
-    sig = []
-    clean_args = []
-    for arg in args:
-        if isinstance(arg, list):
-            arg = interpret(arg)
-            
-        if isinstance(arg, Register):
-            sig.append('r%d' % arg.bits)
-        elif isinstance(arg, Pointer):
-            sig.append('r/m%d' % arg.bits)
-        elif isinstance(arg, int):
-            arg = pack_int(arg, int8=True)
-            sig.append('imm%d' % (8*len(arg)))
-        elif isinstance(arg, str):
-            sig.append('imm%d' % len(arg))
-        else:
-            raise TypeError("Invalid argument type %s." % type(arg))
-        clean_args.append(arg)
-    sig = tuple(sig)
-
-    # Match this to an appropriate function signature
-    use_sig = get_instruction_mode(sig, modes)
-    mode = modes[use_sig]
-    #print "Requested signature:", sig
-    #print "Supported signature:", use_sig
-    #print "Selected instruction mode:", mode
-    
-    # Make sure this signature is supported for this architecture
-    if ARCH == 64 and mode[2] is False:
-        raise TypeError('Argument types not accepted in 64-bit mode: %s' 
-                        % sig)
-    if ARCH == 32 and mode[3] is False:
-        raise TypeError('Argument types not accepted in 32-bit mode: %s' 
-                        % sig)
-
-    # Start encoding instruction
-    # extract encoding for opcode
-    prefixes = []
-    rex_byt = 0
-    
-    # parse opcode string (todo: these should be pre-parsed)
-    op_parts = mode[0].split(' ')
-    rexw = False
-    if op_parts[:2] == ['REX.W', '+']:
-        op_parts = op_parts[2:]
-        rexw = True
-    
-    opcode_s = op_parts[0]
-    if '+' in opcode_s:
-        opcode_s = opcode_s.partition('+')[0]
-        reg_in_opcode = True
-    else:
-        reg_in_opcode = False
-    
-    # assemble initial opcode
-    opcode = ''
-    for i in range(0, len(opcode_s), 2):
-        opcode += chr(int(opcode_s[i:i+2], 16))
-    
-    # check for opcode extension
-    opcode_ext = None
-    if len(op_parts) > 1:
-        if op_parts[1] == '/r':
-            pass  # handled by operand encoding
-        elif op_parts[1][0] == '/':
-            opcode_ext = int(op_parts[1][1])
-
-    # initialize modrm and imm 
-    reg = opcode_ext
-    rm = None
-    imm = None
-    
-    # encode operands
-    for i,arg in enumerate(clean_args):
-        # look up encoding for this operand
-        enc = operand_enc[mode[1]][i]
-        #print "operand encoding:", i, arg, enc 
-        if enc == 'opcode +rd (r)':
-            opcode = opcode[:-1] + chr(ord(opcode[-1]) | arg.val)
-            if arg.rex:
-                rex_byt = rex_byt | rex.b
-            if arg.bits == 16:
-                prefixes.append('\x66')
-        elif enc.startswith('ModRM:r/m'):
-            rm = arg
-            if arg.bits == 16:
-                prefixes.append('\x66')
-            if isinstance(arg, Pointer):
-                addrpfx = arg.prefix
-                if addrpfx != '':
-                    prefixes.append(addrpfx)  # adds 0x67 prefix if needed
-        elif enc.startswith('ModRM:reg'):
-            reg = arg
-        elif enc.startswith('imm'):
-            immsize = int(use_sig[i][3:])
-            opsize = 8 * len(arg)
-            assert opsize <= immsize
-            imm = arg + '\0'*((immsize-opsize)//8)
-        else:
-            raise RuntimeError("Invalid operand encoding: %s" % enc)
-        
-    operands = []
-    if rm is not None:
-        modrm = ModRmSib(reg, rm)
-        operands.append(modrm.code)
-        rex_byt |= modrm.rex
-        
-    if imm is not None:
-        operands.append(imm)
-    
-    if rexw:
-        rex_byt |= rex.w
-    
-    if rex_byt == 0:
-        rex_byt = ''
-    else:
-        rex_byt = chr(rex_byt)
-    
-    return ''.join(prefixes) + rex_byt + opcode + ''.join(operands)
+    return Instruction(modes, operand_enc, *args).code
 
     
 
@@ -1035,31 +1047,36 @@ def instruction(modes, operand_enc, *args):
 #----------------------------------------
 
 
+instruction_modes = {}
+instruction_op_enc = {}
+
 def push(*args):
     """Push register, memory, or immediate onto the stack.
     
     Opcode: 50+rd
     Push value stored in reg onto the stack.
     """
-    modes = {
-        ('r/m16',): ['ff /6', 'm', True, True],
-        ('r/m32',): ['ff /6', 'm', False, True],
-        ('r/m64',): ['ff /6', 'm', True, False],
-        ('r16',): ['50+rw', 'o', True, True],
-        ('r32',): ['50+rd', 'o', False, True],
-        ('r64',): ['50+rd', 'o', True, False],
-        ('imm8',): ['6a ib', 'i', True, True],
-        #('imm16',): ['68 iw', 'i', True, True],  # gnu as does not use this
-        ('imm32',): ['68 id', 'i', True, True],
-    }
     
-    operand_enc = {
-        'm': ['ModRM:r/m (r)'],
-        'o': ['opcode +rd (r)'],
-        'i': ['imm8/16/32'],
-    }
+    return instruction(instruction_modes['push'], 
+                       instruction_op_enc['push'], *args)
+
+instruction_modes['push'] = {
+    ('r/m16',): ['ff /6', 'm', True, True],
+    ('r/m32',): ['ff /6', 'm', False, True],
+    ('r/m64',): ['ff /6', 'm', True, False],
+    ('r16',): ['50+rw', 'o', True, True],
+    ('r32',): ['50+rd', 'o', False, True],
+    ('r64',): ['50+rd', 'o', True, False],
+    ('imm8',): ['6a ib', 'i', True, True],
+    #('imm16',): ['68 iw', 'i', True, True],  # gnu as does not use this
+    ('imm32',): ['68 id', 'i', True, True],
+}
     
-    return instruction(modes, operand_enc, *args)
+instruction_op_enc['push'] = {
+    'm': ['ModRM:r/m (r)'],
+    'o': ['opcode +rd (r)'],
+    'i': ['imm8/16/32'],
+}
             
     
 #def push(*args):
@@ -1093,13 +1110,45 @@ def push(*args):
         #else:
             #return '\x68' + imm
 
-def pop(reg):
-    """ POP REG
+def pop(op):
+    """Loads the value from the top of the stack to the location specified with
+    the destination operand (or explicit opcode) and then increments the stack 
+    pointer. 
     
-    Opcode: 50+rd
-    Push value stored in reg onto the stack.
+    The destination operand can be a general-purpose register, memory location,
+    or segment register.
     """
-    return chr(0x58 | reg.val)
+    return instruction(instruction_modes['pop'], 
+                       instruction_op_enc['pop'], op)
+
+instruction_modes['pop'] = {
+    ('r/m16',): ['8f /0', 'm', True, True],
+    ('r/m32',): ['8f /0', 'm', False, True],
+    ('r/m64',): ['8f /0', 'm', True, False],
+    ('r16',): ['58+rw', 'o', True, True],
+    ('r32',): ['58+rd', 'o', False, True],
+    ('r64',): ['58+rd', 'o', True, False],
+}
+
+instruction_op_enc['pop'] = {
+    'm': ['ModRM:r/m (r)'],
+    'o': ['opcode +rd (r)'],
+}
+    
+
+
+
+
+#def pop(reg):
+    #""" POP REG
+    
+    #Opcode: 50+rd
+    #Push value stored in reg onto the stack.
+    #"""
+    #if reg.rex:
+        #raise NotImplementedError()
+    #else:
+        #return chr(0x58 | reg.val)
 
 def ret(pop=0):
     """ RET
@@ -1144,20 +1193,23 @@ def call(*args):
         code.replace(1, "%s - next_instr_addr" % args[0], 'i')
         return code
     else:
-        # generate absolute call
-        modes = {
-            #('rel16',): ['e8', 'm', False, True],
-            #('rel32',): ['e8', 'm', True, True],
-            ('r/m16',): ['ff /2', 'm', False, True],
-            ('r/m32',): ['ff /2', 'm', False, True],
-            ('r/m64',): ['ff /2', 'm', True, False],
-        }
-        
-        operand_enc = {
-            'm': ['ModRM:r/m (r)'],
-        }
-        
-        return instruction(modes, operand_enc, *args)
+        return instruction(instruction_modes['call'], 
+                           instruction_op_enc['call'], *args)
+
+# generate absolute call
+instruction_modes['call'] = {
+    #('rel16',): ['e8', 'm', False, True],
+    #('rel32',): ['e8', 'm', True, True],
+    ('r/m16',): ['ff /2', 'm', False, True],
+    ('r/m32',): ['ff /2', 'm', False, True],
+    ('r/m64',): ['ff /2', 'm', True, False],
+}
+
+instruction_op_enc['call'] = {
+    'm': ['ModRM:r/m (r)'],
+}
+
+
 
 #def call(op):
     #"""CALL op
@@ -1343,37 +1395,37 @@ def add(dst, src):
     two memory operands cannot be used in one instruction.) When an immediate 
     value is used as an operand, it is sign-extended to the length of the 
     destination operand format.
-    """
-    modes = collections.OrderedDict([
-        (('r/m8', 'imm8'),   ['80 /0', 'mi', True, True]),
-        (('r/m16', 'imm16'), ['81 /0', 'mi', True, True]),
-        (('r/m32', 'imm32'), ['81 /0', 'mi', True, True]),
-        (('r/m64', 'imm32'), ['REX.W + 81 /0', 'mi', True, False]),
-        
-        (('r/m16', 'imm8'),  ['83 /0', 'mi', True, True]),
-        (('r/m32', 'imm8'),  ['83 /0', 'mi', True, True]),
-        (('r/m64', 'imm8'),  ['REX.W + 83 /0', 'mi', True, False]),        
-        
-        (('r/m8', 'r8'),   ['00 /r', 'mr', True, True]),
-        (('r/m16', 'r16'), ['01 /r', 'mr', True, True]),
-        (('r/m32', 'r32'), ['01 /r', 'mr', True, True]),
-        (('r/m64', 'r64'), ['REX.W + 01 /r', 'mr', True, False]),
-        
-        (('r8', 'r/m8'),   ['02 /r', 'rm', True, True]),
-        (('r16', 'r/m16'),   ['03 /r', 'rm', True, True]),
-        (('r32', 'r/m32'),   ['03 /r', 'rm', True, True]),
-        (('r64', 'r/m64'),   ['REX.W + 03 /r', 'rm', True, False]),
-        
-    ])
+    """    
+    return instruction(instruction_modes['add'], 
+                       instruction_op_enc['add'], dst, src)
     
-    operand_enc = {
-        'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
-        'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
-        'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
-    }
+instruction_modes['add'] = collections.OrderedDict([
+    (('r/m8', 'imm8'),   ['80 /0', 'mi', True, True]),
+    (('r/m16', 'imm16'), ['81 /0', 'mi', True, True]),
+    (('r/m32', 'imm32'), ['81 /0', 'mi', True, True]),
+    (('r/m64', 'imm32'), ['REX.W + 81 /0', 'mi', True, False]),
     
-    return instruction(modes, operand_enc, dst, src)
+    (('r/m16', 'imm8'),  ['83 /0', 'mi', True, True]),
+    (('r/m32', 'imm8'),  ['83 /0', 'mi', True, True]),
+    (('r/m64', 'imm8'),  ['REX.W + 83 /0', 'mi', True, False]),        
     
+    (('r/m8', 'r8'),   ['00 /r', 'mr', True, True]),
+    (('r/m16', 'r16'), ['01 /r', 'mr', True, True]),
+    (('r/m32', 'r32'), ['01 /r', 'mr', True, True]),
+    (('r/m64', 'r64'), ['REX.W + 01 /r', 'mr', True, False]),
+    
+    (('r8', 'r/m8'),   ['02 /r', 'rm', True, True]),
+    (('r16', 'r/m16'),   ['03 /r', 'rm', True, True]),
+    (('r32', 'r/m32'),   ['03 /r', 'rm', True, True]),
+    (('r64', 'r/m64'),   ['REX.W + 03 /r', 'rm', True, False]),
+    
+])
+
+instruction_op_enc['add'] = {
+    'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
+    'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
+    'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
+}
 
 
 #def add(dst, src):
@@ -1426,6 +1478,31 @@ def add(dst, src):
     #modrm = ModRmSib(reg, addr)
     #return '\x01' + modrm.code
 
+# NOTE: this is broken because lea uses a different interpretation of the 0x66
+# and 0x67 prefixes.
+#def lea(dst, src):
+    #"""Computes the effective address of the second operand (the source 
+    #operand) and stores it in the first operand (destination operand). 
+    
+    #The source operand is a memory address (offset part) specified with one of
+    #the processors addressing modes; the destination operand is a general-
+    #purpose register.
+    #"""
+    #return instruction(instruction_modes['lea'], 
+                       #instruction_op_enc['lea'], dst, src)
+
+#instruction_modes['lea'] = collections.OrderedDict([
+    #(('r16', 'r/m16'), ['8d /r', 'rm', True, True]),
+    #(('r32', 'r/m32'), ['8d /r', 'rm', True, True]),
+    #(('r64', 'r/m64'), ['REX.W + 8d /r', 'rm', True, False]),
+#])
+
+#instruction_op_enc['lea'] = {
+    #'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
+#}
+    
+
+
 def lea(a, b):
     """ LEA r,[base+offset+disp]
     
@@ -1441,8 +1518,8 @@ def lea(a, b):
             prefix += '\x66'
         if modrm.argbits[1] == 32:
             prefix += '\x67'
-        if modrm.argbits[0] == 64:
-            prefix += rex.w
+        #if modrm.argbits[0] == 64:
+            #prefix += chr(rex.w)
     else:
         raise NotImplementedError("lea only implemented for 64bit")
     return prefix + '\x8d' + modrm.code
@@ -1458,22 +1535,24 @@ def dec(op):
     flag. (To perform a decrement operation that updates the CF flag, use a SUB
     instruction with an immediate operand of 1.)
     """
-    modes = collections.OrderedDict([
-        (('r/m8',),  ['fe /1', 'm', True, True]),
-        (('r/m16',), ['ff /1', 'm', True, True]),
-        (('r/m32',), ['ff /1', 'm', True, True]),
-        (('r/m64',), ['REX.W + ff /1', 'm', True, False]),
-        
-        (('r16',),  ['48+rw', 'o', False, True]),
-        (('r32',),  ['48+rd', 'o', False, True]),
-    ])
+    return instruction(instruction_modes['dec'], 
+                       instruction_op_enc['dec'], op)
+
+instruction_modes['dec'] = collections.OrderedDict([
+    (('r/m8',),  ['fe /1', 'm', True, True]),
+    (('r/m16',), ['ff /1', 'm', True, True]),
+    (('r/m32',), ['ff /1', 'm', True, True]),
+    (('r/m64',), ['REX.W + ff /1', 'm', True, False]),
     
-    operand_enc = {
-        'm': ['ModRM:r/m (r,w)'],
-        'o': ['opcode + rd (r, w)'],
-    }
-    
-    return instruction(modes, operand_enc, op)
+    (('r16',),  ['48+rw', 'o', False, True]),
+    (('r32',),  ['48+rd', 'o', False, True]),
+])
+
+instruction_op_enc['dec'] = {
+    'm': ['ModRM:r/m (r,w)'],
+    'o': ['opcode + rd (r, w)'],
+}
+
     
 #def dec(op):
     #""" DEC r/m
@@ -1495,23 +1574,25 @@ def inc(op):
     instruction allows a loop counter to be updated without disturbing the CF
     flag. (Use a ADD instruction with an immediate operand of 1 to perform an
     increment operation that does updates the CF flag.)
-    """
-    modes = collections.OrderedDict([
-        (('r/m8',),  ['fe /0', 'm', True, True]),
-        (('r/m16',), ['ff /0', 'm', True, True]),
-        (('r/m32',), ['ff /0', 'm', True, True]),
-        (('r/m64',), ['REX.W + ff /0', 'm', True, False]),
-        
-        (('r16',),  ['40+rw', 'o', False, True]),
-        (('r32',),  ['40+rd', 'o', False, True]),
-    ])
+    """    
+    return instruction(instruction_modes['inc'], 
+                       instruction_op_enc['inc'], op)
+
+instruction_modes['inc'] = collections.OrderedDict([
+    (('r/m8',),  ['fe /0', 'm', True, True]),
+    (('r/m16',), ['ff /0', 'm', True, True]),
+    (('r/m32',), ['ff /0', 'm', True, True]),
+    (('r/m64',), ['REX.W + ff /0', 'm', True, False]),
     
-    operand_enc = {
-        'm': ['ModRM:r/m (r,w)'],
-        'o': ['opcode + rd (r, w)'],
-    }
-    
-    return instruction(modes, operand_enc, op)
+    (('r16',),  ['40+rw', 'o', False, True]),
+    (('r32',),  ['40+rd', 'o', False, True]),
+])
+
+instruction_op_enc['inc'] = {
+    'm': ['ModRM:r/m (r,w)'],
+    'o': ['opcode + rd (r, w)'],
+}
+
 
 #def inc(op):
     #""" INC r/m
@@ -1525,29 +1606,102 @@ def inc(op):
     #else:
         #return '\xff' + modrm.code
 
-def imul(a, b):
-    """ IMUL reg, r/m
+def imul(*args):
+    """Performs a signed multiplication of two operands. This instruction has 
+    three forms, depending on the number of operands.
     
-    Signed integer multiply reg * r/m and store in reg
-    Opcode: 0f af /r
+    * One-operand form — This form is identical to that used by the MUL 
+    instruction. Here, the source operand (in a general-purpose register or 
+    memory location) is multiplied by the value in the AL, AX, EAX, or RAX 
+    register (depending on the operand size) and the product (twice the size of
+    the input operand) is stored in the AX, DX:AX, EDX:EAX, or RDX:RAX 
+    registers, respectively.
+    
+    * Two-operand form — With this form the destination operand (the first 
+    operand) is multiplied by the source operand (second operand). The 
+    destination operand is a general-purpose register and the source operand is
+    an immediate value, a general-purpose register, or a memory location. The 
+    intermediate product (twice the size of the input operand) is truncated and
+    stored in the destination operand location.
+    
+    * Three-operand form — This form requires a destination operand (the first
+    operand) and two source operands (the second and the third operands). Here,
+    the first source operand (which can be a general-purpose register or a 
+    memory location) is multiplied by the second source operand (an immediate 
+    value). The intermediate product (twice the size of the first source 
+    operand) is truncated and stored in the destination operand (a 
+    general-purpose register).
     """
-    modrm = ModRmSib(a, b)
-    if modrm.bits == 64:
-        return rex.w + '\x0f\xaf' + modrm.code
-    else:
-        return '\x0f\xaf' + modrm.code
+    return instruction(instruction_modes['imul'], 
+                       instruction_op_enc['imul'], *args)
 
-def idiv(op):
-    """ IDIV r/m
+instruction_modes['imul'] = collections.OrderedDict([
+    (('r16', 'r/m16'),   ['0faf /r', 'rm', True, True]),
+    (('r32', 'r/m32'),   ['0faf /r', 'rm', True, True]),
+    (('r64', 'r/m64'),   ['REX.W + 0faf /r', 'rm', True, False]),
     
-    Signed integer divide *ax / r/m and store in *ax
-    Opcode: f7 /7
+    (('r16', 'r/m16', 'imm8'),   ['6b /r ib', 'rmi', True, True]),
+    (('r32', 'r/m32', 'imm8'),   ['6b /r ib', 'rmi', True, True]),
+    (('r64', 'r/m64', 'imm8'),   ['REX.W + 6b /r ib', 'rmi', True, False]),
+    
+    (('r16', 'r/m16', 'imm16'),   ['69 /r iw', 'rmi', True, True]),
+    (('r32', 'r/m32', 'imm32'),   ['69 /r id', 'rmi', True, True]),
+    (('r64', 'r/m64', 'imm32'),   ['REX.W + 69 /r id', 'rmi', True, False]),
+])
+
+instruction_op_enc['imul'] = {
+    'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
+    'rmi': ['ModRM:reg (r,w)', 'ModRM:r/m (r)', 'imm8/16/32'],
+}
+
+
+
+#def imul(a, b):
+    #""" IMUL reg, r/m
+    
+    #Signed integer multiply reg * r/m and store in reg
+    #Opcode: 0f af /r
+    #"""
+    #modrm = ModRmSib(a, b)
+    #if modrm.bits == 64:
+        #return rex.w + '\x0f\xaf' + modrm.code
+    #else:
+        #return '\x0f\xaf' + modrm.code
+
+
+def idiv(*args):
+    """Divides the (signed) value in the AX, DX:AX, or EDX:EAX (dividend) by 
+    the source operand (divisor) and stores the result in the AX (AH:AL), 
+    DX:AX, or EDX:EAX registers. The source operand can be a general-purpose 
+    register or a memory location. The action of this instruction depends on 
+    the operand size (dividend/divisor).
     """
-    modrm = ModRmSib(0x7, op)
-    if modrm.bits == 64:
-        return rex.w + '\xf7' + modrm.code
-    else:
-        return '\xf7' + modrm.code
+    return instruction(instruction_modes['idiv'], 
+                       instruction_op_enc['idiv'], *args)
+
+instruction_modes['idiv'] = collections.OrderedDict([
+    (('r/m8',), ('f6 /7', 'm', True, True)),
+    (('r/m16',), ('f7 /7', 'm', True, True)),
+    (('r/m32',), ('f7 /7', 'm', True, True)),
+    (('r/m64',), ('REX.W + f6 /7', 'm', True, False)),
+])
+
+instruction_op_enc['idiv'] = {
+    'm': ['ModRM:r/m (r)'],
+}
+
+    
+#def idiv(op):
+    #""" IDIV r/m
+    
+    #Signed integer divide *ax / r/m and store in *ax
+    #Opcode: f7 /7
+    #"""
+    #modrm = ModRmSib(0x7, op)
+    #if modrm.bits == 64:
+        #return rex.w + '\xf7' + modrm.code
+    #else:
+        #return '\xf7' + modrm.code
 
 
 
