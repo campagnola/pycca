@@ -949,11 +949,6 @@ class Instruction(object):
         operand_enc = self.operand_enc
         use_sig = self.use_sig
         
-        # Start encoding instruction
-        # extract encoding for opcode
-        prefixes = []
-        rex_byt = 0
-        
         # parse opcode string (todo: these should be pre-parsed)
         op_parts = mode[0].split(' ')
         rexw = False
@@ -981,18 +976,76 @@ class Instruction(object):
             elif op_parts[1][0] == '/':
                 opcode_ext = int(op_parts[1][1])
 
-        # initialize modrm and imm 
-        reg = opcode_ext
+        # Parse operands into encodable pieces
+        prefixes, rex_byt, opcode_reg, modrm_reg, modrm_rm, imm = self.parse_operands()
+        
+        
+        # encode complete instruction:
+        
+        # decide value for ModR/M reg field
+        if modrm_reg is None:
+            modrm_reg = opcode_ext
+        elif opcode_ext is not None:
+            raise RuntimeError("Cannot encode both register and opcode "
+                               "extension in ModR/M.")
+
+        # encode register in opcode if requested
+        if opcode_reg is not None:
+            opcode = opcode[:-1] + chr(ord(opcode[-1]) | opcode_reg)
+        
+        # encode ModR/M and SIB bytes
+        operands = []
+        if modrm_rm is not None:
+            modrm = ModRmSib(modrm_reg, modrm_rm)
+            operands.append(modrm.code)
+            rex_byt |= modrm.rex
+            
+        # encode immediate operands
+        if imm is not None:
+            operands.append(imm)
+        
+        # encode REX byte
+        if rexw:
+            rex_byt |= rex.w
+        
+        if rex_byt == 0:
+            rex_byt = ''
+        else:
+            rex_byt = chr(rex_byt)
+        
+        # assemble!
+        self.code = ''.join(prefixes) + rex_byt + opcode + ''.join(operands)
+
+    def parse_operands(self):
+        """Use supplied arguments and selected operand encodings to determine
+        how to encode operands. 
+        
+        Returns a tuple:
+            prefixes: a list of prefix strings
+            rex_byt: an integer REX byte (0 for no REX byte)
+            opcode_reg: a register to encode as the last 3 bits of the opcode 
+                        (or None)
+            reg: register to use in the reg field of a ModR/M byte
+            rm: register or pointer to use in the r/m field of a ModR/M byte
+            imm: immediate string
+        """
+        clean_args = self.clean_args
+        operand_enc = self.operand_enc
+        use_sig = self.use_sig
+        mode = self.mode
+        
+        reg = None
         rm = None
         imm = None
-        
-        # encode operands
+        prefixes = []
+        rex_byt = 0
+        opcode_reg = None  # register code embedded in opcode
         for i,arg in enumerate(clean_args):
             # look up encoding for this operand
             enc = operand_enc[mode[1]][i]
             #print "operand encoding:", i, arg, enc 
             if enc == 'opcode +rd (r)':
-                opcode = opcode[:-1] + chr(ord(opcode[-1]) | arg.val)
+                opcode_reg = arg.val
                 if arg.rex:
                     rex_byt = rex_byt | rex.b
                 if arg.bits == 16:
@@ -1014,26 +1067,9 @@ class Instruction(object):
                 imm = arg + '\0'*((immsize-opsize)//8)
             else:
                 raise RuntimeError("Invalid operand encoding: %s" % enc)
-            
-        operands = []
-        if rm is not None:
-            modrm = ModRmSib(reg, rm)
-            operands.append(modrm.code)
-            rex_byt |= modrm.rex
-            
-        if imm is not None:
-            operands.append(imm)
         
-        if rexw:
-            rex_byt |= rex.w
+        return (prefixes, rex_byt, opcode_reg, reg, rm, imm)
         
-        if rex_byt == 0:
-            rex_byt = ''
-        else:
-            rex_byt = chr(rex_byt)
-        
-        self.code = ''.join(prefixes) + rex_byt + opcode + ''.join(operands)
-
 
 def instruction(modes, operand_enc, *args):
     """Generic function for encoding an instruction given information from
