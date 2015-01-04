@@ -49,13 +49,13 @@ def addresses(base):
 
 def test_effective_address():
     # test that register/scale/offset arithmetic works
-    assert repr(interpret([rax])) == '[rax]'
-    assert repr(rax + rbx) == '[rbx + rax]'
-    assert repr(8*rax + rbx) == '[8*rax + rbx]'
-    assert repr(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
-    assert repr(interpret([0x1000])) == '[0x1000]'
-    assert repr(0x1000 + rcx) == '[0x1000 + rcx]'
-    assert repr(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
+    assert str(interpret([rax])) == '[rax]'
+    assert str(rax + rbx) == '[rbx + rax]'
+    assert str(8*rax + rbx) == '[8*rax + rbx]'
+    assert str(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
+    assert str(interpret([0x1000])) == '[0x1000]'
+    assert str(0x1000 + rcx) == '[0x1000 + rcx]'
+    assert str(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
 
     # test that we can generate a variety of mod_r/m+sib+disp strings
     assert (interpret([rax])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax]')[2:]
@@ -137,7 +137,7 @@ def test_call():
     # relative calls
     assert call(0x0) == as_code('call .+0x0')
     assert call(-0x1000) == as_code('call .-0x1000')
-    code = call('label')
+    code = call('label').code
     assert code.compile({'label': 0x0, 'next_instr_addr': 5}) == as_code('label:\ncall label')
     # absolute calls
     assert call(rax) == as_code('call rax')

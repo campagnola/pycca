@@ -375,6 +375,9 @@ class Register(object):
     def __repr__(self):
         return "Register(0x%x, %s, %d)" % (self._val, self._name, self._bits)
         
+    def __str__(self):
+        return self._name
+
 
 class Pointer(object):
     """Representation of an effective memory address calculated as a 
@@ -388,7 +391,7 @@ class Pointer(object):
         self.scale = scale
         self.reg2 = reg2
         self.disp = disp
-        self._bits = ARCH
+        self._bits = None
     
     def copy(self):
         return Pointer(self.reg1, self.scale, self.reg2, self.disp)
@@ -429,7 +432,10 @@ class Pointer(object):
     def bits(self):
         """The size of the data referenced by this pointer.
         """
-        return self._bits
+        if self._bits is None:
+            return ARCH
+        else:
+            return self._bits
         
     @bits.setter
     def bits(self, b):
@@ -476,6 +482,9 @@ class Pointer(object):
         return self + x
 
     def __repr__(self):
+        return "Pointer(%s)" % str(self)
+
+    def __str__(self):
         parts = []
         if self.disp is not None:
             parts.append('0x%x' % self.disp)
@@ -486,8 +495,12 @@ class Pointer(object):
                 parts.append(self.reg1.name)
         if self.reg2 is not None:
             parts.append(self.reg2.name)
-        return '[' + ' + '.join(parts) + ']'
-
+        ptr = '[' + ' + '.join(parts) + ']'
+        if self._bits is None:
+            return ptr
+        else:
+            pfx = {8: 'byte', 16: 'word', 32: 'dword', 64: 'qword'}[self._bits]
+            return pfx + ' ptr ' + ptr
 
     def modrm_sib(self, reg=None):
         """Generate a string consisting of mod_reg_r/m byte, optional SIB byte,
@@ -841,20 +854,98 @@ def interpret(arg):
 
 
 class Instruction(object):
-    def __init__(self, modes, operand_enc, *args):
-        self.modes = modes
-        self.operand_enc = operand_enc
+    # Variables to be overridden by Instruction subclasses:
+    name = ""
+    modes = {}  # maps operand signature to instruction modes
+    operand_enc = {}  # maps operand type to encoding mode
+    
+    def __init__(self, *args):
         self.args = args
+        self._sig = None
+        self._clean_args = None
+        self._use_sig = None
+        self._mode = None
+        self._code = None
+
+    @property
+    def sig(self):
+        """The signature of arguments provided for this instruction. 
         
-        self.read_signature()
-        self.select_instruction_mode()
-        self.generate_code()
+        This is a tuple with strings like 'r32', 'r/m64', and 'imm8'.
+        """
+        if self._sig is None:
+            self.read_signature()
+        return self._sig
+    
+    @property
+    def clean_args(self):
+        """Filtered arguments. 
+        
+        These are derived from the arguments supplied when instantiating the
+        instruction, with possible changes:
+        
+        * int values are converted to a packed string
+        * lists are converted to Pointer
+        """
+        if self._clean_args is None:
+            self.read_signature()
+        return self._clean_args
+
+    @property
+    def use_sig(self):
+        """The argument signature supported by this instruction that is 
+        compatible with the supplied arguments.
+        
+        The format is the same as the `sig` property.
+        """
+        if self._use_sig is None:
+            self.select_instruction_mode()
+        return self._use_sig
+    
+    @property
+    def mode(self):
+        """The selected encoding mode to use for this instruction.
+        """
+        if self._mode is None:
+            self.select_instruction_mode()
+        return self._mode
+
+    @property
+    def code(self):
+        """The compiled machine code for this instruction.
+        
+        If the instruction uses an unresolved symbol (such as a label)
+        then a Code instance is returned which can be used to compile the 
+        final machine code after symbols are resolved.
+        """
+        if self._code is None:
+            self.generate_code()
+        return self._code    
+        
+    @property
+    def asm(self):
+        """An intel-syntax assembler string matching this instruction.
+        """
+        args = []
+        for arg in self.args:
+            if isinstance(arg, list):
+                arg = Pointer(arg[0])
+            args.append(arg)
+        return self.name + ' ' + ', '.join(map(str, args))
+        
+    def __eq__(self, code):
+        if isinstance(code, str):
+            return self.code == code
+        else:
+            raise TypeError("Unsupported type for Instruction.__eq__")
         
     def read_signature(self):
         """Determine signature of argument types.
         
-        Sets self.sig to a tuple of strings like 'r32', 'r/m64', and 'imm8'
-        Sets self.clean_args to a tuple of arguments that have been processed:
+        This method may be overridden by subclasses.
+        
+        Sets self._sig to a tuple of strings like 'r32', 'r/m64', and 'imm8'
+        Sets self._clean_args to a tuple of arguments that have been processed:
             - lists are converted to Pointer
             - ints are converted to packed string
         """
@@ -877,8 +968,8 @@ class Instruction(object):
                 raise TypeError("Invalid argument type %s." % type(arg))
             clean_args.append(arg)
         
-        self.sig = tuple(sig)
-        self.clean_args = tuple(clean_args)
+        self._sig = tuple(sig)
+        self._clean_args = tuple(clean_args)
 
     def select_instruction_mode(self):
         """Select a compatible instruction mode from self.modes based on the 
@@ -898,8 +989,8 @@ class Instruction(object):
         #print "Available modes:", modes
         orig_sig = sig
         if sig in modes:
-            self.use_sig = sig
-            self.mode = modes[sig]
+            self._use_sig = sig
+            self._mode = modes[sig]
             return
         
         # Check each instruction mode one at a time to see whether it is compatible
@@ -932,8 +1023,8 @@ class Instruction(object):
                     raise Exception("operand type %s" % mtype)
             
             if usemode:
-                self.use_sig = mode
-                self.mode = modes[mode]
+                self._use_sig = mode
+                self._mode = modes[mode]
                 return
         
         raise TypeError('Argument types not accepted for this instruction: %s' 
@@ -944,13 +1035,8 @@ class Instruction(object):
         
         Sets self.code.
         """
-        mode = self.mode
-        clean_args = self.clean_args
-        operand_enc = self.operand_enc
-        use_sig = self.use_sig
-        
         # parse opcode string (todo: these should be pre-parsed)
-        op_parts = mode[0].split(' ')
+        op_parts = self.mode[0].split(' ')
         rexw = False
         if op_parts[:2] == ['REX.W', '+']:
             op_parts = op_parts[2:]
@@ -1014,7 +1100,7 @@ class Instruction(object):
             rex_byt = chr(rex_byt)
         
         # assemble!
-        self.code = ''.join(prefixes) + rex_byt + opcode + ''.join(operands)
+        self._code = ''.join(prefixes) + rex_byt + opcode + ''.join(operands)
 
     def parse_operands(self):
         """Use supplied arguments and selected operand encodings to determine
@@ -1071,13 +1157,6 @@ class Instruction(object):
         return (prefixes, rex_byt, opcode_reg, reg, rm, imm)
         
 
-def instruction(modes, operand_enc, *args):
-    """Generic function for encoding an instruction given information from
-    the intel reference and the operands.
-    """
-    return Instruction(modes, operand_enc, *args).code
-
-    
 
 #   Procedure management instructions
 #----------------------------------------
@@ -1086,33 +1165,31 @@ def instruction(modes, operand_enc, *args):
 instruction_modes = {}
 instruction_op_enc = {}
 
-def push(*args):
+class push(Instruction):
     """Push register, memory, or immediate onto the stack.
     
     Opcode: 50+rd
     Push value stored in reg onto the stack.
     """
-    
-    return instruction(instruction_modes['push'], 
-                       instruction_op_enc['push'], *args)
+    name = 'push'
 
-instruction_modes['push'] = {
-    ('r/m16',): ['ff /6', 'm', True, True],
-    ('r/m32',): ['ff /6', 'm', False, True],
-    ('r/m64',): ['ff /6', 'm', True, False],
-    ('r16',): ['50+rw', 'o', True, True],
-    ('r32',): ['50+rd', 'o', False, True],
-    ('r64',): ['50+rd', 'o', True, False],
-    ('imm8',): ['6a ib', 'i', True, True],
-    #('imm16',): ['68 iw', 'i', True, True],  # gnu as does not use this
-    ('imm32',): ['68 id', 'i', True, True],
-}
-    
-instruction_op_enc['push'] = {
-    'm': ['ModRM:r/m (r)'],
-    'o': ['opcode +rd (r)'],
-    'i': ['imm8/16/32'],
-}
+    modes = {
+        ('r/m16',): ['ff /6', 'm', True, True],
+        ('r/m32',): ['ff /6', 'm', False, True],
+        ('r/m64',): ['ff /6', 'm', True, False],
+        ('r16',): ['50+rw', 'o', True, True],
+        ('r32',): ['50+rd', 'o', False, True],
+        ('r64',): ['50+rd', 'o', True, False],
+        ('imm8',): ['6a ib', 'i', True, True],
+        #('imm16',): ['68 iw', 'i', True, True],  # gnu as does not use this
+        ('imm32',): ['68 id', 'i', True, True],
+    }
+        
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o': ['opcode +rd (r)'],
+        'i': ['imm8/16/32'],
+    }
             
     
 #def push(*args):
@@ -1146,7 +1223,7 @@ instruction_op_enc['push'] = {
         #else:
             #return '\x68' + imm
 
-def pop(op):
+class pop(Instruction):
     """Loads the value from the top of the stack to the location specified with
     the destination operand (or explicit opcode) and then increments the stack 
     pointer. 
@@ -1154,22 +1231,21 @@ def pop(op):
     The destination operand can be a general-purpose register, memory location,
     or segment register.
     """
-    return instruction(instruction_modes['pop'], 
-                       instruction_op_enc['pop'], op)
+    name = 'pop'
+    
+    modes = {
+        ('r/m16',): ['8f /0', 'm', True, True],
+        ('r/m32',): ['8f /0', 'm', False, True],
+        ('r/m64',): ['8f /0', 'm', True, False],
+        ('r16',): ['58+rw', 'o', True, True],
+        ('r32',): ['58+rd', 'o', False, True],
+        ('r64',): ['58+rd', 'o', True, False],
+    }
 
-instruction_modes['pop'] = {
-    ('r/m16',): ['8f /0', 'm', True, True],
-    ('r/m32',): ['8f /0', 'm', False, True],
-    ('r/m64',): ['8f /0', 'm', True, False],
-    ('r16',): ['58+rw', 'o', True, True],
-    ('r32',): ['58+rd', 'o', False, True],
-    ('r64',): ['58+rd', 'o', True, False],
-}
-
-instruction_op_enc['pop'] = {
-    'm': ['ModRM:r/m (r)'],
-    'o': ['opcode +rd (r)'],
-}
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o': ['opcode +rd (r)'],
+    }
     
 
 
@@ -1210,7 +1286,7 @@ def leave():
     return '\xc9'
 
 
-def call(*args):
+class call(Instruction):
     """Saves procedure linking information on the stack and branches to the 
     called procedure specified using the target operand. 
     
@@ -1218,32 +1294,33 @@ def call(*args):
     called procedure. The operand can be an immediate value, a general-purpose 
     register, or a memory location.
     """
-    if len(args) != 1:
-        raise TypeError("call requires exactly 1 argument")
-    if isinstance(args[0], int):
-        # Manually generate relative call
-        return '\xe8' + struct.pack('i', args[0]-5)
-    elif isinstance(args[0], str):
-        # Generate relative call to label
-        code = Code('\xe8' + '\x00\x00\x00\x00')
-        code.replace(1, "%s - next_instr_addr" % args[0], 'i')
-        return code
-    else:
-        return instruction(instruction_modes['call'], 
-                           instruction_op_enc['call'], *args)
+    name = 'call'
+    
+    # generate absolute call
+    modes = {
+        #('rel16',): ['e8', 'm', False, True],
+        #('rel32',): ['e8', 'm', True, True],
+        ('r/m16',): ['ff /2', 'm', False, True],
+        ('r/m32',): ['ff /2', 'm', False, True],
+        ('r/m64',): ['ff /2', 'm', True, False],
+    }
 
-# generate absolute call
-instruction_modes['call'] = {
-    #('rel16',): ['e8', 'm', False, True],
-    #('rel32',): ['e8', 'm', True, True],
-    ('r/m16',): ['ff /2', 'm', False, True],
-    ('r/m32',): ['ff /2', 'm', False, True],
-    ('r/m64',): ['ff /2', 'm', True, False],
-}
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
 
-instruction_op_enc['call'] = {
-    'm': ['ModRM:r/m (r)'],
-}
+    def __init__(self, addr):
+        Instruction.__init__(self, addr)
+        
+        if isinstance(addr, int):
+            # Manually generate relative call
+            self._code = '\xe8' + struct.pack('i', addr-5)
+        elif isinstance(addr, str):
+            # Generate relative call to label
+            code = Code('\xe8' + '\x00\x00\x00\x00')
+            code.replace(1, "%s - next_instr_addr" % addr, 'i')
+            self._code = code
+        
 
 
 
@@ -1422,7 +1499,7 @@ def movsd(dst, src):
 #----------------------------------------
 
 
-def add(dst, src):
+class add(Instruction):
     """Adds the destination operand (first operand) and the source operand 
     (second operand) and then stores the result in the destination operand. 
     
@@ -1432,36 +1509,35 @@ def add(dst, src):
     value is used as an operand, it is sign-extended to the length of the 
     destination operand format.
     """    
-    return instruction(instruction_modes['add'], 
-                       instruction_op_enc['add'], dst, src)
+    name = 'add'
     
-instruction_modes['add'] = collections.OrderedDict([
-    (('r/m8', 'imm8'),   ['80 /0', 'mi', True, True]),
-    (('r/m16', 'imm16'), ['81 /0', 'mi', True, True]),
-    (('r/m32', 'imm32'), ['81 /0', 'mi', True, True]),
-    (('r/m64', 'imm32'), ['REX.W + 81 /0', 'mi', True, False]),
-    
-    (('r/m16', 'imm8'),  ['83 /0', 'mi', True, True]),
-    (('r/m32', 'imm8'),  ['83 /0', 'mi', True, True]),
-    (('r/m64', 'imm8'),  ['REX.W + 83 /0', 'mi', True, False]),        
-    
-    (('r/m8', 'r8'),   ['00 /r', 'mr', True, True]),
-    (('r/m16', 'r16'), ['01 /r', 'mr', True, True]),
-    (('r/m32', 'r32'), ['01 /r', 'mr', True, True]),
-    (('r/m64', 'r64'), ['REX.W + 01 /r', 'mr', True, False]),
-    
-    (('r8', 'r/m8'),   ['02 /r', 'rm', True, True]),
-    (('r16', 'r/m16'),   ['03 /r', 'rm', True, True]),
-    (('r32', 'r/m32'),   ['03 /r', 'rm', True, True]),
-    (('r64', 'r/m64'),   ['REX.W + 03 /r', 'rm', True, False]),
-    
-])
+    modes = collections.OrderedDict([
+        (('r/m8', 'imm8'),   ['80 /0', 'mi', True, True]),
+        (('r/m16', 'imm16'), ['81 /0', 'mi', True, True]),
+        (('r/m32', 'imm32'), ['81 /0', 'mi', True, True]),
+        (('r/m64', 'imm32'), ['REX.W + 81 /0', 'mi', True, False]),
+        
+        (('r/m16', 'imm8'),  ['83 /0', 'mi', True, True]),
+        (('r/m32', 'imm8'),  ['83 /0', 'mi', True, True]),
+        (('r/m64', 'imm8'),  ['REX.W + 83 /0', 'mi', True, False]),        
+        
+        (('r/m8', 'r8'),   ['00 /r', 'mr', True, True]),
+        (('r/m16', 'r16'), ['01 /r', 'mr', True, True]),
+        (('r/m32', 'r32'), ['01 /r', 'mr', True, True]),
+        (('r/m64', 'r64'), ['REX.W + 01 /r', 'mr', True, False]),
+        
+        (('r8', 'r/m8'),   ['02 /r', 'rm', True, True]),
+        (('r16', 'r/m16'),   ['03 /r', 'rm', True, True]),
+        (('r32', 'r/m32'),   ['03 /r', 'rm', True, True]),
+        (('r64', 'r/m64'),   ['REX.W + 03 /r', 'rm', True, False]),
+        
+    ])
 
-instruction_op_enc['add'] = {
-    'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
-    'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
-    'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
-}
+    operand_enc = {
+        'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
+        'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
+        'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
+    }
 
 
 #def add(dst, src):
@@ -1516,53 +1592,53 @@ instruction_op_enc['add'] = {
 
 # NOTE: this is broken because lea uses a different interpretation of the 0x66
 # and 0x67 prefixes.
-#def lea(dst, src):
-    #"""Computes the effective address of the second operand (the source 
-    #operand) and stores it in the first operand (destination operand). 
+class lea(Instruction):
+    """Computes the effective address of the second operand (the source 
+    operand) and stores it in the first operand (destination operand). 
     
-    #The source operand is a memory address (offset part) specified with one of
-    #the processors addressing modes; the destination operand is a general-
-    #purpose register.
-    #"""
-    #return instruction(instruction_modes['lea'], 
-                       #instruction_op_enc['lea'], dst, src)
-
-#instruction_modes['lea'] = collections.OrderedDict([
-    #(('r16', 'r/m16'), ['8d /r', 'rm', True, True]),
-    #(('r32', 'r/m32'), ['8d /r', 'rm', True, True]),
-    #(('r64', 'r/m64'), ['REX.W + 8d /r', 'rm', True, False]),
-#])
-
-#instruction_op_enc['lea'] = {
-    #'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
-#}
-    
-
-
-def lea(a, b):
-    """ LEA r,[base+offset+disp]
-    
-    Load effective address.
-    Opcode: 8d /r (uses mod_reg_r/m byte)
-    Op/En: RM (REG is dest; R/M is source)
+    The source operand is a memory address (offset part) specified with one of
+    the processors addressing modes; the destination operand is a general-
+    purpose register.
     """
-    modrm = ModRmSib(a, b)
-    assert modrm.argtypes == 'rm'
-    prefix = ''
-    if ARCH == 64:
-        if modrm.argbits[0] == 16:
-            prefix += '\x66'
-        if modrm.argbits[1] == 32:
-            prefix += '\x67'
-        #if modrm.argbits[0] == 64:
-            #prefix += chr(rex.w)
-    else:
-        raise NotImplementedError("lea only implemented for 64bit")
-    return prefix + '\x8d' + modrm.code
-    #return '\x8d' + mod_reg_rm('ind8', r, sib) + mk_sib(1, offset, base) + chr(disp)
+
+    modes = collections.OrderedDict([
+        (('r16', 'r/m16'), ['8d /r', 'rm', True, True]),
+        (('r32', 'r/m32'), ['8d /r', 'rm', True, True]),
+        (('r64', 'r/m64'), ['REX.W + 8d /r', 'rm', True, False]),
+    ])
+
+    operand_enc = {
+        'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
+    }
+    
+    def __init__(self, dst, src):
+        Instruction.__init__(self, dst, src)
+
+
+#def lea(a, b):
+    #""" LEA r,[base+offset+disp]
+    
+    #Load effective address.
+    #Opcode: 8d /r (uses mod_reg_r/m byte)
+    #Op/En: RM (REG is dest; R/M is source)
+    #"""
+    #modrm = ModRmSib(a, b)
+    #assert modrm.argtypes == 'rm'
+    #prefix = ''
+    #if ARCH == 64:
+        #if modrm.argbits[0] == 16:
+            #prefix += '\x66'
+        #if modrm.argbits[1] == 32:
+            #prefix += '\x67'
+        ##if modrm.argbits[0] == 64:
+            ##prefix += chr(rex.w)
+    #else:
+        #raise NotImplementedError("lea only implemented for 64bit")
+    #return prefix + '\x8d' + modrm.code
+    ##return '\x8d' + mod_reg_rm('ind8', r, sib) + mk_sib(1, offset, base) + chr(disp)
     
 
-def dec(op):
+class dec(Instruction):
     """Subtracts 1 from the destination operand, while preserving the state of
     the CF flag. 
     
@@ -1571,23 +1647,21 @@ def dec(op):
     flag. (To perform a decrement operation that updates the CF flag, use a SUB
     instruction with an immediate operand of 1.)
     """
-    return instruction(instruction_modes['dec'], 
-                       instruction_op_enc['dec'], op)
 
-instruction_modes['dec'] = collections.OrderedDict([
-    (('r/m8',),  ['fe /1', 'm', True, True]),
-    (('r/m16',), ['ff /1', 'm', True, True]),
-    (('r/m32',), ['ff /1', 'm', True, True]),
-    (('r/m64',), ['REX.W + ff /1', 'm', True, False]),
-    
-    (('r16',),  ['48+rw', 'o', False, True]),
-    (('r32',),  ['48+rd', 'o', False, True]),
-])
+    modes = collections.OrderedDict([
+        (('r/m8',),  ['fe /1', 'm', True, True]),
+        (('r/m16',), ['ff /1', 'm', True, True]),
+        (('r/m32',), ['ff /1', 'm', True, True]),
+        (('r/m64',), ['REX.W + ff /1', 'm', True, False]),
+        
+        (('r16',),  ['48+rw', 'o', False, True]),
+        (('r32',),  ['48+rd', 'o', False, True]),
+    ])
 
-instruction_op_enc['dec'] = {
-    'm': ['ModRM:r/m (r,w)'],
-    'o': ['opcode + rd (r, w)'],
-}
+    operand_enc = {
+        'm': ['ModRM:r/m (r,w)'],
+        'o': ['opcode + rd (r, w)'],
+    }
 
     
 #def dec(op):
@@ -1602,7 +1676,7 @@ instruction_op_enc['dec'] = {
     #else:
         #return '\xff' + modrm.code
 
-def inc(op):
+class inc(Instruction):
     """Adds 1 to the destination operand, while preserving the state of the CF
     flag. 
     
@@ -1611,23 +1685,21 @@ def inc(op):
     flag. (Use a ADD instruction with an immediate operand of 1 to perform an
     increment operation that does updates the CF flag.)
     """    
-    return instruction(instruction_modes['inc'], 
-                       instruction_op_enc['inc'], op)
 
-instruction_modes['inc'] = collections.OrderedDict([
-    (('r/m8',),  ['fe /0', 'm', True, True]),
-    (('r/m16',), ['ff /0', 'm', True, True]),
-    (('r/m32',), ['ff /0', 'm', True, True]),
-    (('r/m64',), ['REX.W + ff /0', 'm', True, False]),
-    
-    (('r16',),  ['40+rw', 'o', False, True]),
-    (('r32',),  ['40+rd', 'o', False, True]),
-])
+    modes = collections.OrderedDict([
+        (('r/m8',),  ['fe /0', 'm', True, True]),
+        (('r/m16',), ['ff /0', 'm', True, True]),
+        (('r/m32',), ['ff /0', 'm', True, True]),
+        (('r/m64',), ['REX.W + ff /0', 'm', True, False]),
+        
+        (('r16',),  ['40+rw', 'o', False, True]),
+        (('r32',),  ['40+rd', 'o', False, True]),
+    ])
 
-instruction_op_enc['inc'] = {
-    'm': ['ModRM:r/m (r,w)'],
-    'o': ['opcode + rd (r, w)'],
-}
+    operand_enc = {
+        'm': ['ModRM:r/m (r,w)'],
+        'o': ['opcode + rd (r, w)'],
+    }
 
 
 #def inc(op):
@@ -1642,7 +1714,7 @@ instruction_op_enc['inc'] = {
     #else:
         #return '\xff' + modrm.code
 
-def imul(*args):
+class imul(Instruction):
     """Performs a signed multiplication of two operands. This instruction has 
     three forms, depending on the number of operands.
     
@@ -1668,27 +1740,25 @@ def imul(*args):
     operand) is truncated and stored in the destination operand (a 
     general-purpose register).
     """
-    return instruction(instruction_modes['imul'], 
-                       instruction_op_enc['imul'], *args)
 
-instruction_modes['imul'] = collections.OrderedDict([
-    (('r16', 'r/m16'),   ['0faf /r', 'rm', True, True]),
-    (('r32', 'r/m32'),   ['0faf /r', 'rm', True, True]),
-    (('r64', 'r/m64'),   ['REX.W + 0faf /r', 'rm', True, False]),
-    
-    (('r16', 'r/m16', 'imm8'),   ['6b /r ib', 'rmi', True, True]),
-    (('r32', 'r/m32', 'imm8'),   ['6b /r ib', 'rmi', True, True]),
-    (('r64', 'r/m64', 'imm8'),   ['REX.W + 6b /r ib', 'rmi', True, False]),
-    
-    (('r16', 'r/m16', 'imm16'),   ['69 /r iw', 'rmi', True, True]),
-    (('r32', 'r/m32', 'imm32'),   ['69 /r id', 'rmi', True, True]),
-    (('r64', 'r/m64', 'imm32'),   ['REX.W + 69 /r id', 'rmi', True, False]),
-])
+    modes = collections.OrderedDict([
+        (('r16', 'r/m16'),   ['0faf /r', 'rm', True, True]),
+        (('r32', 'r/m32'),   ['0faf /r', 'rm', True, True]),
+        (('r64', 'r/m64'),   ['REX.W + 0faf /r', 'rm', True, False]),
+        
+        (('r16', 'r/m16', 'imm8'),   ['6b /r ib', 'rmi', True, True]),
+        (('r32', 'r/m32', 'imm8'),   ['6b /r ib', 'rmi', True, True]),
+        (('r64', 'r/m64', 'imm8'),   ['REX.W + 6b /r ib', 'rmi', True, False]),
+        
+        (('r16', 'r/m16', 'imm16'),   ['69 /r iw', 'rmi', True, True]),
+        (('r32', 'r/m32', 'imm32'),   ['69 /r id', 'rmi', True, True]),
+        (('r64', 'r/m64', 'imm32'),   ['REX.W + 69 /r id', 'rmi', True, False]),
+    ])
 
-instruction_op_enc['imul'] = {
-    'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
-    'rmi': ['ModRM:reg (r,w)', 'ModRM:r/m (r)', 'imm8/16/32'],
-}
+    operand_enc = {
+        'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
+        'rmi': ['ModRM:reg (r,w)', 'ModRM:r/m (r)', 'imm8/16/32'],
+    }
 
 
 
@@ -1705,26 +1775,24 @@ instruction_op_enc['imul'] = {
         #return '\x0f\xaf' + modrm.code
 
 
-def idiv(*args):
+class idiv(Instruction):
     """Divides the (signed) value in the AX, DX:AX, or EDX:EAX (dividend) by 
     the source operand (divisor) and stores the result in the AX (AH:AL), 
     DX:AX, or EDX:EAX registers. The source operand can be a general-purpose 
     register or a memory location. The action of this instruction depends on 
     the operand size (dividend/divisor).
     """
-    return instruction(instruction_modes['idiv'], 
-                       instruction_op_enc['idiv'], *args)
 
-instruction_modes['idiv'] = collections.OrderedDict([
-    (('r/m8',), ('f6 /7', 'm', True, True)),
-    (('r/m16',), ('f7 /7', 'm', True, True)),
-    (('r/m32',), ('f7 /7', 'm', True, True)),
-    (('r/m64',), ('REX.W + f6 /7', 'm', True, False)),
-])
+    modes = collections.OrderedDict([
+        (('r/m8',), ('f6 /7', 'm', True, True)),
+        (('r/m16',), ('f7 /7', 'm', True, True)),
+        (('r/m32',), ('f7 /7', 'm', True, True)),
+        (('r/m64',), ('REX.W + f6 /7', 'm', True, False)),
+    ])
 
-instruction_op_enc['idiv'] = {
-    'm': ['ModRM:r/m (r)'],
-}
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
 
     
 #def idiv(op):
@@ -1984,6 +2052,60 @@ def pbin(code):
         for c in instr:
             print format(ord(c), '08b'),
         print ''
+
+def phexbin(code):
+    if not isinstance(code, list):
+        code = [code]
+    for instr in code:
+        line = ''
+        for c in instr:
+            line += '%02x ' % ord(c)
+        line += ' ' * (40 - len(line))
+        for c in instr:
+            line += format(ord(c), '08b') + ' '
+        print line
+
+
+def compare(name, *args):
+    """Print instruction's code beside the output of gnu as.
+    """
+    try:
+        code1 = Instruction(name, *args).code
+        failed1 = False
+    except Exception as exc1:
+        failed1 = True
+
+    args2 = []
+    for arg in args:
+        if isinstance(arg, list):
+            arg = Pointer(arg[0])
+        args2.append(arg)
+    asm = name + ' ' + ', '.join(map(str, args2))
+    print "asm:  ", asm
+    
+    try:
+        code2 = as_code(asm)
+        failed2 = False
+    except Exception as exc2:
+        failed2 = True
+        
+    if failed1 and not failed2:
+        print "[pycc failed; gnu as did not]"
+        phexbin(code2)
+        raise exc1
+    elif failed2 and not failed1:
+        phexbin(code1)
+        print "[gnu as failed; pycc did not]"
+        raise exc2
+    elif failed1 and failed2:
+        print exc1.message
+        print "[pycc and gnu as both failed.]"
+    else:
+        phexbin(code1)
+        phexbin(code2)
+        if code1 == code2:
+            print "[codes match]"
+
 
 def run_as(asm):
     """ Use gnu as and objdump to show ideal compilation of *asm*.
