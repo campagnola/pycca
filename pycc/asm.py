@@ -1168,6 +1168,46 @@ class Instruction(object):
         
 
 
+class RelBranchInstruction(Instruction):
+    """Instruction supporting branching to a relative memory location.
+    
+    Subclasses must set _addr_offset and _instr_len attributes.
+    """
+    def __init__(self, addr):
+        self._label = None
+        # location of relative address within instruction code
+        self._addr_offset = None  
+        # final length of instruction (used to compute relative address)
+        self._instr_len = None  
+        
+        Instruction.__init__(self, addr)
+        
+    def generate_code(self):
+        Instruction.generate_code(self)
+        if self._label is not None:
+            code = Code(self._code)
+            code.replace(self._addr_offset, "%s - next_instr_addr" % self._label, 'i')
+            self._code = code
+            
+    def read_signature(self):
+        if len(self.args) != 1:
+            Instruction.read_signature(self)  # should raise exception
+        
+        # Need to intercept immediate args and subtract instr_len or set label
+        addr = self.args[0]
+        if isinstance(addr, int):
+            self._sig = ('imm32',)
+            self._clean_args = [struct.pack('i', addr-self._instr_len)]
+        elif isinstance(addr, str):
+            # Generate relative call to label
+            self._label = addr
+            self._sig = ('imm32',)
+            self._clean_args = [struct.pack('i', 0)]
+        else:
+            Instruction.read_signature(self)
+
+
+
 #   Procedure management instructions
 #----------------------------------------
 
@@ -1296,7 +1336,7 @@ def leave():
     return '\xc9'
 
 
-class call(Instruction):
+class call(RelBranchInstruction):
     """Saves procedure linking information on the stack and branches to the 
     called procedure specified using the target operand. 
     
@@ -1304,7 +1344,6 @@ class call(Instruction):
     called procedure. The operand can be an immediate value, a general-purpose 
     register, or a memory location.
     """
-    name = 'call'
     
     # generate absolute call
     modes = {
@@ -1321,35 +1360,11 @@ class call(Instruction):
     }
 
     def __init__(self, addr):
-        self._label = None
-        Instruction.__init__(self, addr)
+        RelBranchInstruction.__init__(self, addr)
+        # Needed for computing relative addresses
+        self._addr_offset = 1
+        self._instr_len = 5
         
-    def generate_code(self):
-        Instruction.generate_code(self)
-        if self._label is not None:
-            code = Code(self._code)
-            code.replace(1, "%s - next_instr_addr" % self._label, 'i')
-            self._code = code
-            
-    def read_signature(self):
-        if len(self.args) != 1:
-            raise TypeError("call requires exactly 1 argument.")
-        
-        # Need to intercept immediate args and subtract 5
-        addr = self.args[0]
-        if isinstance(addr, int):
-            self._sig = ('imm32',)
-            self._clean_args = [struct.pack('i', addr-5)]
-        elif isinstance(addr, str):
-            # Generate relative call to label
-            self._label = addr
-            self._sig = ('imm32',)
-            self._clean_args = [struct.pack('i', 0)]
-        else:
-            Instruction.read_signature(self)
-        
-
-
 
 #def call(op):
     #"""CALL op
@@ -1954,32 +1969,56 @@ class test(Instruction):
 #   Branching instructions
 #----------------------------------------
 
-def jmp(addr):
-    if isinstance(addr, Register):
-        return jmp_abs(addr)
-    elif isinstance(addr, (int, str)):
-        return jmp_rel(addr)
-    else:
-        raise TypeError("jmp accepts Register (absolute), integer, or label (relative).")
+class jmp(RelBranchInstruction):
+    # generate absolute call
+    modes = {
+        ('imm8',): ['eb', 'i', True, True],
+        ('imm16',): ['e9', 'i', False, True],
+        ('imm32',): ['e9', 'i', True, True],
+        
+        ('r/m16',): ['ff /4', 'm', False, True],
+        ('r/m32',): ['ff /4', 'm', False, True],
+        ('r/m64',): ['ff /4', 'm', True, False],
+    }
 
-def jmp_rel(addr, opcode='\xe9'):
-    """JMP rel32 (relative)
-    
-    Opcode: 0xe9 cd 
-    """
-    if isinstance(addr, str):
-        code = Code(opcode + '\x00\x00\x00\x00')
-        code.replace(len(opcode), "%s - next_instr_addr" % addr, 'i')
-        return code
-    elif isinstance(addr, int):
-        return opcode + struct.pack('i', addr - (len(opcode)+4))
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'i': ['imm32'],
+    }
 
-def jmp_abs(reg):
-    """JMP r/m32 (absolute)
+    def __init__(self, addr):
+        RelBranchInstruction.__init__(self, addr)
+        # Needed for computing relative addresses
+        self._addr_offset = 1
+        self._instr_len = 5
     
-    Opcode: 0xff /4
-    """
-    return '\xff' + mod_reg_rm('dir', 0x4, reg)
+
+#def jmp(addr):
+    #if isinstance(addr, Register):
+        #return jmp_abs(addr)
+    #elif isinstance(addr, (int, str)):
+        #return jmp_rel(addr)
+    #else:
+        #raise TypeError("jmp accepts Register (absolute), integer, or label (relative).")
+
+#def jmp_rel(addr, opcode='\xe9'):
+    #"""JMP rel32 (relative)
+    
+    #Opcode: 0xe9 cd 
+    #"""
+    #if isinstance(addr, str):
+        #code = Code(opcode + '\x00\x00\x00\x00')
+        #code.replace(len(opcode), "%s - next_instr_addr" % addr, 'i')
+        #return code
+    #elif isinstance(addr, int):
+        #return opcode + struct.pack('i', addr - (len(opcode)+4))
+
+#def jmp_abs(reg):
+    #"""JMP r/m32 (absolute)
+    
+    #Opcode: 0xff /4
+    #"""
+    #return '\xff' + mod_reg_rm('dir', 0x4, reg)
 
 def ja(addr):
     """Jump near if above (CF=0 and ZF=0)."""
