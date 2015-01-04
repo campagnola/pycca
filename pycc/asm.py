@@ -1823,37 +1823,72 @@ class idiv(Instruction):
 #   Testing instructions
 #----------------------------------------
 
+class cmp(Instruction):
+    """Compares the first source operand with the second source operand and 
+    sets the status flags in the EFLAGS register according to the results. 
+    
+    The comparison is performed by subtracting the second operand from the
+    first operand and then setting the status flags in the same manner as the
+    SUB instruction. When an immediate value is used as an operand, it is 
+    sign-extended to the length of the first operand.
+    """
+    modes = collections.OrderedDict([
+        (('r/m8', 'imm8'), ('80 /7', 'mi', True, True)),
+        (('r/m16', 'imm16'), ('81 /7', 'mi', True, True)),
+        (('r/m32', 'imm32'), ('81 /7', 'mi', True, True)),
+        (('r/m64', 'imm32'), ('REX.W + 81 /7', 'mi', True, False)),
+        
+        (('r/m16', 'imm8'), ('83 /7', 'mi', True, True)),
+        (('r/m32', 'imm8'), ('83 /7', 'mi', True, True)),
+        (('r/m64', 'imm8'), ('REX.W + 83 /7', 'mi', True, False)),
+        
+        (('r/m8', 'r8'), ('38 /r', 'mr', True, True)),
+        (('r/m16', 'r16'), ('39 /r', 'mr', True, True)),
+        (('r/m32', 'r32'), ('39 /r', 'mr', True, True)),
+        (('r/m64', 'r64'), ('REX.W + 39 /r', 'mr', True, False)),
+        
+        (('r8', 'r/m8'), ('3a /r', 'rm', True, True)),
+        (('r16', 'r/m16'), ('3b /r', 'rm', True, True)),
+        (('r32', 'r/m32'), ('3b /r', 'rm', True, True)),
+        (('r64', 'r/m64'), ('REX.W + 3b /r', 'rm', True, False)),
+    ])
 
-def cmp(a, b):
-    #if isinstance(b, (Register, Pointer)):
-        #modrm = ModRmSib(a, b)
-        #if modrm.argtypes in ('rm', 'rr'):
-            #opcode = '\x3b'
-        #elif modrm.argtypes == 'mr':
-            #opcode = '\x39'
-        #else:
-            #raise NotImplementedError()
-        #imm = ''
-    #else:
-        #modrm = ModRmSib(0x7, a)
-        #opcode = '\x81'
-        #imm = struct.pack('i', b)
+    operand_enc = {
+        'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
+        'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
+        'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
+    }
+
+#def cmp(a, b):
+    ##if isinstance(b, (Register, Pointer)):
+        ##modrm = ModRmSib(a, b)
+        ##if modrm.argtypes in ('rm', 'rr'):
+            ##opcode = '\x3b'
+        ##elif modrm.argtypes == 'mr':
+            ##opcode = '\x39'
+        ##else:
+            ##raise NotImplementedError()
+        ##imm = ''
+    ##else:
+        ##modrm = ModRmSib(0x7, a)
+        ##opcode = '\x81'
+        ##imm = struct.pack('i', b)
     
-    #prefix = ''
-    #if modrm.bits == 64:
-        #prefix += rex.w
+    ##prefix = ''
+    ##if modrm.bits == 64:
+        ##prefix += rex.w
     
-    #return prefix + opcode + modrm.code + imm
-    inst = Instruction(a, b)
-    if inst.argtypes in ('rm', 'rr'):
-        inst.opcode = '\x3b'
-    elif inst.argtypes == 'mr':
-        inst.opcode = '\x39'
-    elif inst.argtypes in ('mi', 'ri'):
-        inst.opcode = '\x81'
-        inst.ext = 0x7
-        inst.imm_fmt = 'i'
-    return inst.code
+    ##return prefix + opcode + modrm.code + imm
+    #inst = Instruction(a, b)
+    #if inst.argtypes in ('rm', 'rr'):
+        #inst.opcode = '\x3b'
+    #elif inst.argtypes == 'mr':
+        #inst.opcode = '\x39'
+    #elif inst.argtypes in ('mi', 'ri'):
+        #inst.opcode = '\x81'
+        #inst.ext = 0x7
+        #inst.imm_fmt = 'i'
+    #return inst.code
 
 def test(a, b):
     """Computes the bit-wise logical AND of first operand (source 1 operand) 
