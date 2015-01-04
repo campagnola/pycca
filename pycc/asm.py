@@ -1309,7 +1309,7 @@ class call(Instruction):
     # generate absolute call
     modes = {
         #('rel16',): ['e8', 'm', False, True],
-        #('rel32',): ['e8', 'm', True, True],
+        ('imm32',): ['e8', 'i', True, True],
         ('r/m16',): ['ff /2', 'm', False, True],
         ('r/m32',): ['ff /2', 'm', False, True],
         ('r/m64',): ['ff /2', 'm', True, False],
@@ -1317,19 +1317,36 @@ class call(Instruction):
 
     operand_enc = {
         'm': ['ModRM:r/m (r)'],
+        'i': ['imm32'],
     }
 
     def __init__(self, addr):
+        self._label = None
         Instruction.__init__(self, addr)
         
+    def generate_code(self):
+        Instruction.generate_code(self)
+        if self._label is not None:
+            code = Code(self._code)
+            code.replace(1, "%s - next_instr_addr" % self._label, 'i')
+            self._code = code
+            
+    def read_signature(self):
+        if len(self.args) != 1:
+            raise TypeError("call requires exactly 1 argument.")
+        
+        # Need to intercept immediate args and subtract 5
+        addr = self.args[0]
         if isinstance(addr, int):
-            # Manually generate relative call
-            self._code = '\xe8' + struct.pack('i', addr-5)
+            self._sig = ('imm32',)
+            self._clean_args = [struct.pack('i', addr-5)]
         elif isinstance(addr, str):
             # Generate relative call to label
-            code = Code('\xe8' + '\x00\x00\x00\x00')
-            code.replace(1, "%s - next_instr_addr" % addr, 'i')
-            self._code = code
+            self._label = addr
+            self._sig = ('imm32',)
+            self._clean_args = [struct.pack('i', 0)]
+        else:
+            Instruction.read_signature(self)
         
 
 
@@ -1890,25 +1907,46 @@ class cmp(Instruction):
         #inst.imm_fmt = 'i'
     #return inst.code
 
-def test(a, b):
-    """Computes the bit-wise logical AND of first operand (source 1 operand) 
-    and the second operand (source 2 operand) and sets the SF, ZF, and PF 
-    status flags according to the result.
-    """
-    if isinstance(b, (Register, Pointer)):
-        modrm = ModRmSib(a, b)
-        opcode = '\x85'
-        imm = ''
-    else:
-        modrm = ModRmSib(0x0, a)
-        opcode = '\xf7'
-        imm = struct.pack('i', b)
+class test(Instruction):
+    modes = collections.OrderedDict([
+        (('r/m8', 'imm8'), ('f6 /0', 'mi', True, True)),
+        (('r/m16', 'imm16'), ('f7 /0', 'mi', True, True)),
+        (('r/m32', 'imm32'), ('f7 /0', 'mi', True, True)),
+        (('r/m64', 'imm32'), ('REX.W + f7 /0', 'mi', True, False)),
+        
+        (('r/m8', 'r8'), ('84 /r', 'mr', True, True)),
+        (('r/m16', 'r16'), ('85 /r', 'mr', True, True)),
+        (('r/m32', 'r32'), ('85 /r', 'mr', True, True)),
+        (('r/m64', 'r64'), ('REX.W + 85 /r', 'mr', True, False)),
+    ])
     
-    prefix = ''
-    if modrm.bits == 64:
-        prefix += rex.w
+    operand_enc = {
+        'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
+        'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
+    }
     
-    return prefix + opcode + modrm.code + imm
+        
+        
+
+#def test(a, b):
+    #"""Computes the bit-wise logical AND of first operand (source 1 operand) 
+    #and the second operand (source 2 operand) and sets the SF, ZF, and PF 
+    #status flags according to the result.
+    #"""
+    #if isinstance(b, (Register, Pointer)):
+        #modrm = ModRmSib(a, b)
+        #opcode = '\x85'
+        #imm = ''
+    #else:
+        #modrm = ModRmSib(0x0, a)
+        #opcode = '\xf7'
+        #imm = struct.pack('i', b)
+    
+    #prefix = ''
+    #if modrm.bits == 64:
+        #prefix += rex.w
+    
+    #return prefix + opcode + modrm.code + imm
     
 
 

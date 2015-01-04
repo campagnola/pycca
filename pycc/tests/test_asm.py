@@ -10,7 +10,7 @@ for name,obj in globals().items():
             # general-purpose registers
             regs.setdefault('gp', []).append(obj)
 
-def test(instr, *args):
+def itest(instr, *args):
     """Generic instruction test: ensure that output of our function matches
     output of GNU assembler.
     
@@ -116,14 +116,14 @@ def test_pack_int():
 def test_push():
     reg = rax
     # can we push a register?
-    test(push, reg, 'push %s' % reg.name)
+    itest(push, reg, 'push %s' % reg.name)
     
     # can we push immediate values?
-    test(push, reg, 'push %s' % reg.name)        
+    itest(push, reg, 'push %s' % reg.name)        
     
     # can we push from memory? 
     for py,asm in addresses(reg):
-        test(push, py, 'push '+asm)
+        itest(push, py, 'push '+asm)
 
 def test_pop():
     assert pop(rbp) == as_code('pop rbp')
@@ -217,11 +217,11 @@ def test_int():
 def test_push():
     for reg in regs['gp']:
         # can we push a register?
-        test(push, reg, 'push %s' % reg.name)
+        itest(push, reg, 'push %s' % reg.name)
         
         # can we push immediate values?
-        test(push, reg, 'push %s' % reg.name)        
+        itest(push, reg, 'push %s' % reg.name)        
         
         # can we push from memory? 
         for py,asm in addresses(reg):
-            test(push, py, 'push '+asm)
+            itest(push, py, 'push '+asm)
