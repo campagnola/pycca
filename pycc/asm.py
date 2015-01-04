@@ -855,9 +855,11 @@ def interpret(arg):
 
 class Instruction(object):
     # Variables to be overridden by Instruction subclasses:
-    name = ""
     modes = {}  # maps operand signature to instruction modes
     operand_enc = {}  # maps operand type to encoding mode
+    
+    address_size = 'seg'  # address size is usually determined by code segment
+    operand_size = 'reg'  # operand size is usually determined by register size
     
     def __init__(self, *args):
         self.args = args
@@ -866,6 +868,10 @@ class Instruction(object):
         self._use_sig = None
         self._mode = None
         self._code = None
+
+    @property
+    def name(self):
+        return self.__class__.__name__
 
     @property
     def sig(self):
@@ -1002,6 +1008,10 @@ class Instruction(object):
             for i in range(len(mode)):
                 sbits = sig[i].lstrip('ir/m')
                 stype = sig[i][:-len(sbits)]
+                if mode[i] == 'm':
+                    usemode = stype == 'r/m'
+                    break
+                
                 mbits = mode[i].lstrip('ir/m')
                 mtype = mode[i][:-len(mbits)]
                 mbits = int(mbits)
@@ -1590,6 +1600,7 @@ class add(Instruction):
     #modrm = ModRmSib(reg, addr)
     #return '\x01' + modrm.code
 
+
 # NOTE: this is broken because lea uses a different interpretation of the 0x66
 # and 0x67 prefixes.
 class lea(Instruction):
@@ -1602,9 +1613,9 @@ class lea(Instruction):
     """
 
     modes = collections.OrderedDict([
-        (('r16', 'r/m16'), ['8d /r', 'rm', True, True]),
-        (('r32', 'r/m32'), ['8d /r', 'rm', True, True]),
-        (('r64', 'r/m64'), ['REX.W + 8d /r', 'rm', True, False]),
+        (('r16', 'm'), ['8d /r', 'rm', True, True]),
+        (('r32', 'm'), ['8d /r', 'rm', True, True]),
+        (('r64', 'm'), ['REX.W + 8d /r', 'rm', True, False]),
     ])
 
     operand_enc = {
@@ -2066,11 +2077,12 @@ def phexbin(code):
         print line
 
 
-def compare(name, *args):
+def compare(instr_class, *args):
     """Print instruction's code beside the output of gnu as.
     """
+    
     try:
-        code1 = Instruction(name, *args).code
+        code1 = instr_class(*args).code
         failed1 = False
     except Exception as exc1:
         failed1 = True
@@ -2080,7 +2092,7 @@ def compare(name, *args):
         if isinstance(arg, list):
             arg = Pointer(arg[0])
         args2.append(arg)
-    asm = name + ' ' + ', '.join(map(str, args2))
+    asm = instr_class.__name__ + ' ' + ', '.join(map(str, args2))
     print "asm:  ", asm
     
     try:
