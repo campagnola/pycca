@@ -39,18 +39,12 @@ Alpha:
 Todo
 ----
 
-* Clean up ASM system
-   * Instruction class: interprets arg types, constructs prefix +opcode +modrm +sib +disp +imm.
-     Most instructions should make use of this.
-   * Instruction docstrings: description on first line; maybe remove other information?
-   * Documentation on how to add new instruction support based on intel reference, 
-     how to add new unit tests
-
-* Support for r8-r15
+* Documentation on how to add new instruction support based on intel reference, 
+  how to add new unit tests
 
 * Add more floating point instructions
 
-* Add SSE, AVX instructions
+* Add SSE, AVX instructions  (and check cpu flags)
 
 * Better 32-bit arch support
 
