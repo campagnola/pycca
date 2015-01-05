@@ -26,10 +26,8 @@ constructs necessary to compile a simple function and load it directly
 into the running process memory. 
 
 
-Status
-------
-
-Alpha:
+Status: beta
+------------
 
 * Can load executable machine code into memory pages on linux (and probably osx)
   and call this executable code via ctypes.
@@ -47,8 +45,6 @@ Todo
 * Add SSE, AVX instructions  (and check cpu flags)
 
 * Better 32-bit arch support
-
-* Python 3 support
 
 * Intermediate data structures for C-like function code, something like:
 
