@@ -2101,125 +2101,55 @@ class jmp(RelBranchInstruction):
     #"""
     #return '\xff' + mod_reg_rm('dir', 0x4, reg)
 
-def ja(addr):
-    """Jump near if above (CF=0 and ZF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x87')
-    
-def jae(addr):
-    """Jump near if above or equal (CF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x83')
-    
-def jb(addr):
-    """Jump near if below (CF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x82')
+def _jcc(name, opcode, doc):
+    """Create a jcc instruction class.
+    """
+    modes = {
+        ('rel8',): [opcode, 'i', True, True],
+        ('rel16',): [opcode, 'i', False, True],
+        ('rel32',): [opcode, 'i', True, True],
+    }
 
-def jbe(addr):
-    """Jump near if below or equal (CF=1 or ZF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x86')
+    op_enc = {
+        'i': ['imm32'],
+    }
 
-def jc(addr):
-    """Jump near if carry (CF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x82')
+    return type(name, (RelBranchInstruction,), {'modes': modes, 
+                                                'operand_enc': op_enc,
+                                                '__doc__': doc}) 
 
-def je(addr):
-    """Jump near if equal (ZF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x84')
 
-def jz(addr):
-    """Jump near if 0 (ZF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x84')
+ja = _jcc('ja', '0f87', """Jump near if above (CF=0 and ZF=0).""")
+jae = _jcc('jae', '0f83', """Jump near if above or equal (CF=0).""")
+jb = _jcc('jb', '0f82', """Jump near if below (CF=1).""")
+jbe = _jcc('jbe', '0f86', """Jump near if below or equal (CF=1 or ZF=1).""")
+jc = _jcc('jc', '0f82', """Jump near if carry (CF=1).""")
+je = _jcc('je', '0f84', """Jump near if equal (ZF=1).""")
+jz = _jcc('jz', '0f84', """Jump near if 0 (ZF=1).""")
+jg = _jcc('jg', '0f8f', """Jump near if greater (ZF=0 and SF=OF).""")
+jge = _jcc('jge', '0f8d', """Jump near if greater or equal (SF=OF).""")
+jl = _jcc('jl', '0f8c', """Jump near if less (SF≠ OF).""")
+jle = _jcc('jle', '0f8e', """Jump near if less or equal (ZF=1 or SF≠ OF).""")
+jna = _jcc('jna', '0f86', """Jump near if not above (CF=1 or ZF=1).""")
+jnae = _jcc('jnae', '0f82', """Jump near if not above or equal (CF=1).""")
+jnb = _jcc('jnb', '0f83', """Jump near if not below (CF=0).""")
+jnbe = _jcc('jnbe', '0f87', """Jump near if not below or equal (CF=0 and ZF=0).""")
+jnc = _jcc('jnc', '0f83', """Jump near if not carry (CF=0).""")
+jne = _jcc('jne', '0f85', """Jump near if not equal (ZF=0).""")
+jng = _jcc('jng', '0f8e', """Jump near if not greater (ZF=1 or SF≠ OF).""")
+jnge = _jcc('jnge', '0f8c', """Jump near if not greater or equal (SF ≠ OF).""")
+jnl = _jcc('jnl', '0f8d', """Jump near if not less (SF=OF).""")
+jnle = _jcc('jnle', '0f8f', """Jump near if not less or equal (ZF=0 and SF=OF).""")
+jno = _jcc('jno', '0f81', """Jump near if not overflow (OF=0).""")
+jnp = _jcc('jnp', '0f8b', """Jump near if not parity (PF=0).""")
+jns = _jcc('jns', '0f89', """Jump near if not sign (SF=0).""")
+jnz = _jcc('jnz', '0f85', """Jump near if not zero (ZF=0).""")
+jo = _jcc('jo', '0f80', """Jump near if overflow (OF=1).""")
+jp = _jcc('jp', '0f8a', """Jump near if parity (PF=1).""")
+jpe = _jcc('jpe', '0f8a', """Jump near if parity even (PF=1).""")
+jpo = _jcc('jpo', '0f8b', """Jump near if parity odd (PF=0).""")
+js = _jcc('js', '0f88', """Jump near if sign (SF=1).""")
 
-def jg(addr):
-    """Jump near if greater (ZF=0 and SF=OF)."""
-    return jmp_rel(addr, opcode='\x0f\x8f')
-
-def jge(addr):
-    """Jump near if greater or equal (SF=OF)."""
-    return jmp_rel(addr, opcode='\x0f\x8d')
-
-def jl(addr):
-    """Jump near if less (SF≠ OF)."""
-    return jmp_rel(addr, opcode='\x0f\x8c')
-
-def jle(addr):
-    """Jump near if less or equal (ZF=1 or SF≠ OF)."""
-    return jmp_rel(addr, opcode='\x0f\x8e')
-
-def jna(addr):
-    """Jump near if not above (CF=1 or ZF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x86')
-
-def jnae(addr):
-    """Jump near if not above or equal (CF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x82')
-
-def jnb(addr):
-    """Jump near if not below (CF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x83')
-
-def jnbe(addr):
-    """Jump near if not below or equal (CF=0 and ZF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x87')
-
-def jnc(addr):
-    """Jump near if not carry (CF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x83')
-
-def jne(addr):
-    """Jump near if not equal (ZF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x85')
-
-def jng(addr):
-    """Jump near if not greater (ZF=1 or SF≠ OF)."""
-    return jmp_rel(addr, opcode='\x0f\x8e')
-
-def jnge(addr):
-    """Jump near if not greater or equal (SF ≠ OF)."""
-    return jmp_rel(addr, opcode='\x0f\x8c')
-
-def jnl(addr):
-    """Jump near if not less (SF=OF)."""
-    return jmp_rel(addr, opcode='\x0f\x8d')
-
-def jnle(addr):
-    """Jump near if not less or equal (ZF=0 and SF=OF)."""
-    return jmp_rel(addr, opcode='\x0f\x8f')
-
-def jno(addr):
-    """Jump near if not overflow (OF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x81')
-
-def jnp(addr):
-    """Jump near if not parity (PF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x8b')
-
-def jns(addr):
-    """Jump near if not sign (SF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x89')
-
-def jnz(addr):
-    """Jump near if not zero (ZF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x85')
-
-def jo(addr):
-    """Jump near if overflow (OF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x80')
-
-def jp(addr):
-    """Jump near if parity (PF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x8a')
-
-def jpe(addr):
-    """Jump near if parity even (PF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x8a')
-
-def jpo(addr):
-    """Jump near if parity odd (PF=0)."""
-    return jmp_rel(addr, opcode='\x0f\x8b')
-
-def js(addr):
-    """Jump near if sign (SF=1)."""
-    return jmp_rel(addr, opcode='\x0f\x88')
 
 
 #   OS instructions
