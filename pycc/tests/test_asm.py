@@ -86,13 +86,13 @@ def test_effective_address():
     
 
 def test_pack_int():
-    assert pack_int(0x10) == '\x10\x00'
-    assert pack_int(0x10, int8=True) == '\x10'
-    assert pack_int(0x10, int16=False) == '\x10\x00\x00\x00'
-    assert pack_int(0x1000) == '\x00\x10'
-    assert pack_int(0x100000) == '\x00\x00\x10\x00'
-    assert pack_int(0x10000000) == '\x00\x00\x00\x10'
-    assert pack_int(0x1000000000) == '\x00\x00\x00\x00\x10\x00\x00\x00'
+    assert pack_int(0x10) == b'\x10\x00'
+    assert pack_int(0x10, int8=True) == b'\x10'
+    assert pack_int(0x10, int16=False) == b'\x10\x00\x00\x00'
+    assert pack_int(0x1000) == b'\x00\x10'
+    assert pack_int(0x100000) == b'\x00\x00\x10\x00'
+    assert pack_int(0x10000000) == b'\x00\x00\x00\x10'
+    assert pack_int(0x1000000000) == b'\x00\x00\x00\x00\x10\x00\x00\x00'
 
 
 
