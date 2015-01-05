@@ -1334,37 +1334,6 @@ class push(Instruction):
     }
             
     
-#def push(*args):
-    #"""Push register, memory, or immediate onto the stack.
-    
-    #Opcode: 50+rd
-    #Push value stored in reg onto the stack.
-    #"""
-    #if isinstance(op, Register):
-        ## don't support segment registers for now.
-        ##shortcuts = {
-            ##cs: '\x0e',
-            ##ss: '\x16',
-            ##ds: '\x1e',
-            ##es: '\x06',
-            ##fs: '\x0f\xa0',
-            ##gs: '\x0f\xa8'}
-        ##if op in shortcuts:
-            ##return shortcuts[op]
-        #if ARCH == 64 and op.bits == 32:
-            #raise TypeError("Cannot push 32-bit register in 64-bit mode.")
-        #elif ARCH == 32 and op.bits == 64:
-            #raise TypeError("Cannot push 64-bit register in 32-bit mode.")
-        #return chr(0x50 | op.val)
-    #elif isinstance(op, Pointer):
-        #return '\xff' + mod_reg_rm(0x6, op)
-    #elif isinstance(op, int):
-        #imm = pack_int(op, int8=True)
-        #if len(imm) == 1:
-            #return '\x6a' + imm
-        #else:
-            #return '\x68' + imm
-
 class pop(Instruction):
     """Loads the value from the top of the stack to the location specified with
     the destination operand (or explicit opcode) and then increments the stack 
@@ -1390,20 +1359,6 @@ class pop(Instruction):
     }
     
 
-
-
-
-#def pop(reg):
-    #""" POP REG
-    
-    #Opcode: 50+rd
-    #Push value stored in reg onto the stack.
-    #"""
-    #if reg.rex:
-        #raise NotImplementedError()
-    #else:
-        #return chr(0x58 | reg.val)
-
 def ret(pop=0):
     """ RET
     
@@ -1415,6 +1370,7 @@ def ret(pop=0):
         return '\xc2' + struct.pack('<h', pop)
     else:
         return '\xc3'
+
 
 def leave():
     """ LEAVE
@@ -1452,53 +1408,6 @@ class call(RelBranchInstruction):
         'i': ['imm32'],
     }
         
-
-#def call(op):
-    #"""CALL op
-    
-    #Push EIP onto stack and branch to address specified in *op*.
-    
-    #If op is a signed int (16 or 32 bits), this generates a near, relative call
-    #where the displacement given in op is relative to the next instruction.
-    
-    #If op is a Register then this generates a near, absolute call where the 
-    #absolute offset is read from the register.
-    #"""
-    #if isinstance(op, Register):
-        #return call_abs(op)
-    #elif isinstance(op, int):
-        #return call_rel(op)
-    #else:
-        #raise TypeError("call argument must be int or Register")
-
-#def call_abs(reg):
-    #"""CALL (absolute) 
-    
-    #Opcode: 0xff /2
-    
-    #"""
-    ## note: opcode extension 2 is encoded in bits 3-5 of the next byte
-    ##       (this is the reg field of mod_reg_r/m)
-    ##       the mod bits 00 and r/m bits 101 indicate a 32-bit displacement follows.
-    #if reg.bits == 32:
-        #return '\xff' + mod_reg_rm('dir', 0b010, reg)
-    #else:
-        #return '\xff' + mod_reg_rm('dir', 0b010, reg)
-        
-        
-#def call_rel(addr):
-    #"""CALL (relative) 
-    
-    #Opcode: 0xe8 cd  (cd indicates 4-byte argument follows opcode)
-    
-    #Note: addr is signed int relative to _next_ instruction pointer 
-          #(which should be current instruction pointer + 5, since this is a
-          #5 byte instruction).
-    #"""
-    ## Note: there is no 64-bit relative call.
-    #return '\xe8' + struct.pack('i', addr-5)
-
-
 
 #   Data moving instructions
 #----------------------------------------
@@ -1545,106 +1454,6 @@ class mov(Instruction):
         'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
     }
 
-#def mov(a, b):
-    #a = interpret(a)
-    #b = interpret(b)
-    
-    #if isinstance(a, Register):
-        #if isinstance(b, Register):
-            ## Copy register to register
-            #return mov_rm_r(a, b)
-        #elif isinstance(b, (int, long)):
-            ## Copy immediate value to register
-            #return mov_r_imm(a, b)
-        #elif isinstance(b, Pointer):
-            ## Copy memory to register
-            #return mov_r_rm(a, b)
-        #else:
-            #raise TypeError("mov second argument must be Register, immediate, "
-                            #"or Pointer")
-    #elif isinstance(a, Pointer):
-        #if isinstance(b, Register):
-            ## Copy register to memory
-            #return mov_rm_r(a, b)
-        #elif isinstance(b, (int, long)):
-            ## Copy immediate value to memory
-            #raise NotImplementedError("mov imm=>addr not implemented")
-        #else:
-            #raise TypeError("mov second argument must be Register or immediate"
-                            #" when first argument is Pointer")
-    #else:
-        #raise TypeError("mov first argument must be Register or Pointer")
-
-#def mov_r_rm(r, rm, opcode='\x8b'):
-    #""" MOV R,R/M
-    
-    #Opcode: 8b /r (uses mod_reg_r/m byte)
-    #Op/En: RM (REG is dest; R/M is source)
-    #Move from R/M to R
-    #"""
-    ## Note: as with many opcodes, flipping bit 6 swaps the R->RM order
-    ##       yielding 0x89 (mov_rm_r)
-    #inst = ""
-    #if r.bits == 64:
-        #inst += rex.w
-    #elif r.bits != 32:
-        #raise NotImplementedError('register bit size %d not supported' % r.bits)
-    #inst += opcode
-    
-    #if isinstance(rm, Register):
-        ## direct register-register copy
-        #inst += mod_reg_rm('dir', r, rm)
-    #elif isinstance(rm, Pointer):
-        ## memory to register copy
-        #inst += rm.modrm_sib(r)
-        
-    #return inst
-
-#def mov_rm_r(rm, r):
-    #""" MOV R/M,R
-    
-    #Opcode: 89 /r
-    #Move from R to R/M
-    #"""
-    #return mov_r_rm(r, rm, opcode='\x89')
-
-#def mov_rm32_r32(rm, r):
-    #""" MOV R/M,R
-    
-    #Opcode: 89 /r (uses mod_reg_r/m byte)
-    #Op/En: MR (R/M is dest; REG is source)
-    #Move from R to R/M 
-    #"""
-    ## Note: as with many opcodes, flipping bit 6 swaps the R->RM order
-    ##       yielding 0x8B (mov_r_rm)
-    #return '\x89' + mod_reg_rm('dir', r, rm)
-
-#def mov_rm64_r64(rm, r):
-    #""" MOV R/M,R
-    
-    #Opcode: 89 /r (uses mod_reg_r/m byte)
-    #Op/En: MR (R/M is dest; REG is source)
-    #Move from R to R/M 
-    #"""
-    ## Note: as with many opcodes, flipping bit 6 swaps the R->RM order
-    ##       yielding 0x8B (mov_r_rm)
-    #return rex.w + '\x89' + mod_reg_rm('dir', r, rm)
-
-#def mov_r_imm(r, val, fmt=None):
-    #""" MOV REG,VAL
-    
-    #Opcode(32): b8+r
-    #Opcode(64): REX.W + b8 + rd io
-    #Move VAL (32/64 bit immediate as unsigned int) to REG.
-    #"""
-    #if r.bits == 32:
-        #fmt = '<I' if fmt is None else fmt
-        #return chr(0xb8 | r.val) + struct.pack(fmt, val)
-    #elif r.bits == 64:
-        #fmt = '<Q' if fmt is None else fmt
-        #return rex.w + chr(0xb8 | r.val) + struct.pack(fmt, val)
-    #else:
-        #raise NotImplementedError('register bit size %d not supported' % r.bits)
 
 def movsd(dst, src):
     """
@@ -1711,57 +1520,6 @@ class add(Instruction):
     }
 
 
-#def add(dst, src):
-    #"""Perform integer addition of dst + src and store the result in dst.
-    #"""
-    #dst = interpret(dst)
-    #src = interpret(src)
-    
-    #if isinstance(dst, Pointer):
-        #if isinstance(src, Register):
-            #return add_ptr_reg(dst, src)
-        #elif isinstance(src, (int, long)):
-            #return add_ptr_imm(dst, src)
-        #else:
-            #raise TypeError('src must be Register or int if dst is Pointer')
-    #elif isinstance(dst, Register):
-        #if isinstance(src, Register):
-            #return add_reg_reg(dst, src)
-        #elif isinstance(src, Pointer):
-            #return add_reg_ptr(dst, src)
-        #elif isinstance(src, (int, long)):
-            #return add_reg_imm(dst, src)
-        #else:
-            #raise TypeError('src must be Register, Pointer, or int')
-    #else:
-        #raise TypeError('dst must be Register or Pointer')
-
-#def add_reg_imm(reg, val):
-    #"""ADD REG, imm32
-    
-    #Opcode: REX.W 0x81 /0 id
-    #"""
-    #return rex.w + '\x81' + mod_reg_rm('dir', 0x0, reg) + struct.pack('i', val)
-    
-#def add_reg_reg(reg1, reg2):
-    #""" ADD r/m64 r64
-    
-    #Opcode: REX.W 0x01 /r
-    #"""
-    #return rex.w + '\x01' + mod_reg_rm('dir', reg2, reg1)
-
-#def add_reg_ptr(reg, addr):
-    #modrm = ModRmSib(reg, addr)
-    #return '\x03' + modrm.code
-
-#def add_ptr_imm(addr, val):
-    #return '\x81' + addr.modrm_sib(0x0) + struct.pack('i', val)
-    
-#def add_ptr_reg(addr, reg):
-    #modrm = ModRmSib(reg, addr)
-    #return '\x01' + modrm.code
-
-
 # NOTE: this is broken because lea uses a different interpretation of the 0x66
 # and 0x67 prefixes.
 class lea(Instruction):
@@ -1787,29 +1545,6 @@ class lea(Instruction):
     def __init__(self, dst, src):
         Instruction.__init__(self, dst, src)
 
-
-#def lea(a, b):
-    #""" LEA r,[base+offset+disp]
-    
-    #Load effective address.
-    #Opcode: 8d /r (uses mod_reg_r/m byte)
-    #Op/En: RM (REG is dest; R/M is source)
-    #"""
-    #modrm = ModRmSib(a, b)
-    #assert modrm.argtypes == 'rm'
-    #prefix = ''
-    #if ARCH == 64:
-        #if modrm.argbits[0] == 16:
-            #prefix += '\x66'
-        #if modrm.argbits[1] == 32:
-            #prefix += '\x67'
-        ##if modrm.argbits[0] == 64:
-            ##prefix += chr(rex.w)
-    #else:
-        #raise NotImplementedError("lea only implemented for 64bit")
-    #return prefix + '\x8d' + modrm.code
-    ##return '\x8d' + mod_reg_rm('ind8', r, sib) + mk_sib(1, offset, base) + chr(disp)
-    
 
 class dec(Instruction):
     """Subtracts 1 from the destination operand, while preserving the state of
@@ -1838,18 +1573,6 @@ class dec(Instruction):
     }
 
     
-#def dec(op):
-    #""" DEC r/m
-    
-    #Decrement r/m by 1
-    #Opcode: ff /1
-    #"""
-    #modrm = ModRmSib(0x1, op)
-    #if modrm.bits == 64:
-        #return rex.w + '\xff' + modrm.code
-    #else:
-        #return '\xff' + modrm.code
-
 class inc(Instruction):
     """Adds 1 to the destination operand, while preserving the state of the CF
     flag. 
@@ -1876,18 +1599,6 @@ class inc(Instruction):
         'o': ['opcode +rd (r, w)'],
     }
 
-
-#def inc(op):
-    #""" INC r/m
-    
-    #Increment r/m by 1
-    #Opcode: ff /0
-    #"""
-    #modrm = ModRmSib(0x0, op)
-    #if modrm.bits == 64:
-        #return rex.w + '\xff' + modrm.code
-    #else:
-        #return '\xff' + modrm.code
 
 class imul(Instruction):
     """Performs a signed multiplication of two operands. This instruction has 
@@ -1937,20 +1648,6 @@ class imul(Instruction):
     }
 
 
-
-#def imul(a, b):
-    #""" IMUL reg, r/m
-    
-    #Signed integer multiply reg * r/m and store in reg
-    #Opcode: 0f af /r
-    #"""
-    #modrm = ModRmSib(a, b)
-    #if modrm.bits == 64:
-        #return rex.w + '\x0f\xaf' + modrm.code
-    #else:
-        #return '\x0f\xaf' + modrm.code
-
-
 class idiv(Instruction):
     """Divides the (signed) value in the AX, DX:AX, or EDX:EAX (dividend) by 
     the source operand (divisor) and stores the result in the AX (AH:AL), 
@@ -1972,19 +1669,6 @@ class idiv(Instruction):
     }
 
     
-#def idiv(op):
-    #""" IDIV r/m
-    
-    #Signed integer divide *ax / r/m and store in *ax
-    #Opcode: f7 /7
-    #"""
-    #modrm = ModRmSib(0x7, op)
-    #if modrm.bits == 64:
-        #return rex.w + '\xf7' + modrm.code
-    #else:
-        #return '\xf7' + modrm.code
-
-
 
 #   Testing instructions
 #----------------------------------------
@@ -2027,36 +1711,6 @@ class cmp(Instruction):
         'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
     }
 
-#def cmp(a, b):
-    ##if isinstance(b, (Register, Pointer)):
-        ##modrm = ModRmSib(a, b)
-        ##if modrm.argtypes in ('rm', 'rr'):
-            ##opcode = '\x3b'
-        ##elif modrm.argtypes == 'mr':
-            ##opcode = '\x39'
-        ##else:
-            ##raise NotImplementedError()
-        ##imm = ''
-    ##else:
-        ##modrm = ModRmSib(0x7, a)
-        ##opcode = '\x81'
-        ##imm = struct.pack('i', b)
-    
-    ##prefix = ''
-    ##if modrm.bits == 64:
-        ##prefix += rex.w
-    
-    ##return prefix + opcode + modrm.code + imm
-    #inst = Instruction(a, b)
-    #if inst.argtypes in ('rm', 'rr'):
-        #inst.opcode = '\x3b'
-    #elif inst.argtypes == 'mr':
-        #inst.opcode = '\x39'
-    #elif inst.argtypes in ('mi', 'ri'):
-        #inst.opcode = '\x81'
-        #inst.ext = 0x7
-        #inst.imm_fmt = 'i'
-    #return inst.code
 
 class test(Instruction):
     name = "test"
@@ -2077,29 +1731,6 @@ class test(Instruction):
         'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
         'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
     }
-    
-        
-        
-
-#def test(a, b):
-    #"""Computes the bit-wise logical AND of first operand (source 1 operand) 
-    #and the second operand (source 2 operand) and sets the SF, ZF, and PF 
-    #status flags according to the result.
-    #"""
-    #if isinstance(b, (Register, Pointer)):
-        #modrm = ModRmSib(a, b)
-        #opcode = '\x85'
-        #imm = ''
-    #else:
-        #modrm = ModRmSib(0x0, a)
-        #opcode = '\xf7'
-        #imm = struct.pack('i', b)
-    
-    #prefix = ''
-    #if modrm.bits == 64:
-        #prefix += rex.w
-    
-    #return prefix + opcode + modrm.code + imm
     
 
 
@@ -2126,34 +1757,6 @@ class jmp(RelBranchInstruction):
         'i': ['imm32'],
     }
 
-    
-
-#def jmp(addr):
-    #if isinstance(addr, Register):
-        #return jmp_abs(addr)
-    #elif isinstance(addr, (int, str)):
-        #return jmp_rel(addr)
-    #else:
-        #raise TypeError("jmp accepts Register (absolute), integer, or label (relative).")
-
-#def jmp_rel(addr, opcode='\xe9'):
-    #"""JMP rel32 (relative)
-    
-    #Opcode: 0xe9 cd 
-    #"""
-    #if isinstance(addr, str):
-        #code = Code(opcode + '\x00\x00\x00\x00')
-        #code.replace(len(opcode), "%s - next_instr_addr" % addr, 'i')
-        #return code
-    #elif isinstance(addr, int):
-        #return opcode + struct.pack('i', addr - (len(opcode)+4))
-
-#def jmp_abs(reg):
-    #"""JMP r/m32 (absolute)
-    
-    #Opcode: 0xff /4
-    #"""
-    #return '\xff' + mod_reg_rm('dir', 0x4, reg)
 
 def _jcc(name, opcode, doc):
     """Create a jcc instruction class.
@@ -2222,6 +1825,9 @@ def int_(code):
 
 def syscall():
     return '\x0f\x05'
+
+
+
 
 
 
