@@ -222,9 +222,12 @@ class Instruction(object):
                 arg = interpret(arg)
                 
             if isinstance(arg, Register):
-                sig.append('r%d' % arg.bits)
+                if arg.name.startswith('xmm'):
+                    sig.append('xmm')
+                else:
+                    sig.append('r%d' % arg.bits)
             elif isinstance(arg, Pointer):
-                sig.append('r/m%d' % arg.bits)
+                sig.append('m%d' % arg.bits)
             elif isinstance(arg, int):
                 arg = pack_int(arg, int8=True)
                 sig.append('imm%d' % (8*len(arg)))
@@ -266,43 +269,62 @@ class Instruction(object):
                 continue
             usemode = True
             for i in range(len(mode)):
-                sbits = sig[i].lstrip('irel/m')
-                stype = sig[i][:-len(sbits)]
-                if mode[i] == 'm':
-                    usemode = stype == 'r/m'
-                    break
-                
-                mbits = mode[i].lstrip('irel/m')
-                mtype = mode[i][:-len(mbits)]
-                mbits = int(mbits)
-                sbits = int(sbits)
-                
-                if mtype == 'r':
-                    if stype != 'r' or mbits != sbits:
-                        usemode = False
-                        break
-                elif mtype == 'r/m':
-                    if stype not in ('r', 'r/m') or mbits != sbits:
-                        usemode = False
-                        break
-                elif mtype == 'imm':
-                    if stype != 'imm' or mbits < sbits:
-                        usemode = False
-                        break
-                elif mtype == 'rel':
-                    if stype != 'rel':
-                        usemode = False
-                        break
+                if self.check_mode(sig[i], mode[i]):
+                    continue
                 else:
-                    raise Exception("operand type %s" % mtype)
+                    usemode = False
+                    break
             
             if usemode:
                 self._use_sig = mode
                 self._mode = modes[mode]
                 return
         
-        raise TypeError('Argument types not accepted for this instruction: %s' 
-                        % str(orig_sig))
+        raise TypeError('Argument types not accepted for instruction %s: %s' 
+                        % (self.name, str(orig_sig)))
+
+    def check_mode(self, sig, mode):
+        """Return True if an argument of type *sig* may be used to satisfy
+        operand type *mode*.
+        
+        *sig* may look like 'r16', 'm32', 'imm8', 'rel32', 'xmm1', etc.
+        *mode* may look like 'r8', 'm32/64', 'r/m32', 'xmm1/m64', 'xmm2', etc.
+        """
+        sbits = sig.lstrip('irel/xm')
+        stype = sig[:-len(sbits)] if len(sbits) > 0 else sig
+        mbits = mode.lstrip('irel/xm')
+        mtype = mode[:-len(mbits)] if len(mbits) > 0 else mode
+        try:
+            mbits = int(mbits)
+        except ValueError:
+            mbits = 0
+        try:
+            sbits = int(sbits)
+        except ValueError:
+            sbits = 0
+
+        if mtype == 'r':
+            return stype == 'r' and mbits == sbits
+        elif mtype == 'r/m':
+            return stype in ('r', 'm') and mbits == sbits
+        elif mtype == 'imm':
+            return stype == 'imm' and mbits >= sbits
+        elif mtype == 'rel':
+            return stype == 'rel'
+        elif mtype == 'm':
+            if stype != 'm':
+                return False
+            if mbits > 0 and mbits != sbits:
+                return False
+            return True
+        elif mtype == 'xmm':
+            if stype == 'xmm':
+                return True
+            if '/m' in mode and stype == 'm':
+                # handle mode like "xmm1/m64"
+                return self.check_mode(sig, mode[mode.index('/')+1:])
+            return False
+        raise Exception("Invalid operand type %s" % mtype)
 
     def generate_instruction_parts(self):
         """Generate bytecode strings for each piece of the instruction.

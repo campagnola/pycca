@@ -172,7 +172,7 @@ class movsd(Instruction):
     
     modes = collections.OrderedDict([
         (('xmm1', 'xmm2/m64'),   ['f20f10 /r', 'rm', True, True, 'sse2']),
-        (('xmm1', 'm64'),   ['f20f11 /r', 'mr', True, True, 'sse2']),
+        (('m64', 'xmm1'),   ['f20f11 /r', 'mr', True, True, 'sse2']),
     ])
     
     operand_enc = {

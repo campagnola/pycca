@@ -10,9 +10,10 @@ try:
 except ImportError:
     pass
 
-
-#   Example 1: Write a string to stdout
-#------------------------------------------------------
+print """
+   Example 1: Write a string to stdout
+------------------------------------------------------
+"""
 
 msg = ctypes.create_string_buffer("Howdy.\n")
 if ARCH == 32:
@@ -40,9 +41,10 @@ fn.restype = ctypes.c_uint64
 fn()
 
 
-
-#   Example 2: Return a value from call
-#------------------------------------------------------
+print """
+   Example 2: Return a value from call
+------------------------------------------------------
+"""
 
 # just leave the value in eax/rax before returning
 fn = mkfunction([
@@ -57,9 +59,10 @@ fn.restype = ctypes.c_uint64
 print "Return: 0x%x" % fn()
 
 
-
-#   Example 3: Pass arguments to function
-#------------------------------------------------------
+print """
+   Example 3: Pass arguments to function
+------------------------------------------------------
+"""
 
 # There are a few different calling conventions we might want to support..
 # This example uses the System V AMD64 convention (used by most *nixes)
@@ -80,9 +83,10 @@ fn(msg1, msg2)
 print 'Modified string: "%s"' % msg1.value
 
 
-
-#   Example 4: Call an external function
-#------------------------------------------------------
+print """
+   Example 4: Call an external function
+------------------------------------------------------
+"""
 
 # Again we need to worry about calling conventions here.
 # Most common 64-bit conventions pass the first float arg in xmm0
@@ -128,9 +132,10 @@ out = exp()
 print "exp(%f) = %f =? %f" % (op, out, np.exp(op))
 
 
-
-#   Example 5: Jump to label
-#----------------------------------------------
+print """
+   Example 5: Jump to label
+----------------------------------------------
+"""
 
 fn = mkfunction([
     mov(rax, 0x1),
@@ -150,8 +155,10 @@ fn.restype = ctypes.c_uint64
 print "Return: 0x%x" % fn()
 
 
-#   Example 6: Access values from an array
-#------------------------------------------------------
+print """
+   Example 6: Access values from an array
+------------------------------------------------------
+"""
 
 import numpy as np
 data = np.ones(10, dtype=np.uint64)
@@ -171,9 +178,10 @@ print "Read from array: %d" % fn()
 print "Modified array: %d" % data[5]
 
 
-
-#   Example 7: a basic for-loop
-#------------------------------------------------------
+print """
+   Example 7: a basic for-loop
+------------------------------------------------------
+"""
 
 fn = mkfunction([
     mov(rax, 0),
@@ -190,9 +198,10 @@ fn.restype = ctypes.c_uint64
 print "Iterate to 10:", fn()
 
 
-
-#   Example 7: a useful function!
-#------------------------------------------------------
+print """
+   Example 7: a useful function!
+------------------------------------------------------
+"""
 
 find_first = mkfunction([
     mov(rax, 0),
