@@ -458,7 +458,7 @@ class Pointer(object):
                     mrex, modrm = mod_reg_rm(mod, reg, 'sib')
                     srex, sib = mk_sib(0, rsp, regs[0])
                     return mrex|srex, modrm + sib + disp
-                elif regs[0].val == 5 and disp == '':
+                elif regs[0].val == 5 and disp == b'':
                     mrex, modrm = mod_reg_rm('ind8', reg, regs[0])
                     return mrex, modrm + b'\x00'
                 else:
@@ -473,7 +473,7 @@ class Pointer(object):
                                         % (regs[0].name, regs[1].name))
                     # don't put *sp registers in offset
                     regs.reverse()
-                elif regs[1].val == 5 and disp == '':
+                elif regs[1].val == 5 and disp == b'':
                     # if *bp is in base, we need to add 8bit disp
                     mod = 'ind8'
                     disp = b'\x00'
@@ -496,7 +496,7 @@ class Pointer(object):
             #if base is not None and base.val == 5:
                 #raise TypeError("Cannot encode register %s as SIB base." % base.name)
 
-            if base is not None and base.val == 5 and disp == '':
+            if base is not None and base.val == 5 and disp == b'':
                 mod = 'ind8'
                 disp = b'\x00'
             

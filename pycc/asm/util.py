@@ -23,11 +23,11 @@ def phexbin(code):
         code = [code]
     for instr in code:
         line = ''
-        for c in instr:
-            line += '%02x ' % ord(c)
+        for c in bytearray(instr):
+            line += '%02x ' % c
         line += ' ' * (40 - len(line))
-        for c in instr:
-            line += format(ord(c), '08b') + ' '
+        for c in bytearray(instr):
+            line += format(c, '08b') + ' '
         print(line)
 
 

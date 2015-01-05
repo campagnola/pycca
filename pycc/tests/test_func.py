@@ -1,9 +1,9 @@
 from pycc.asm import *
-
+import ctypes
 
 
 def test_func_return():
-    fn = mkfunction(mov(eax,0xdeadbeef) + ret())
+    fn = mkfunction([mov(rax,0xdeadbeef), ret()])
     fn.restype = ctypes.c_uint64
     assert fn() == 0xdeadbeef
 
