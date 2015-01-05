@@ -94,6 +94,9 @@ class Instruction(object):
         # Complete, assembled instruction or Code instance
         self._code = None
 
+    def __len__(self):
+        return len(self.code)
+
     @property
     def name(self):
         return self.__class__.__name__

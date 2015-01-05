@@ -1,4 +1,4 @@
-import ctypes
+import ctypes, struct
 import numpy as np
 import user
 
@@ -46,7 +46,7 @@ fn()
 
 # just leave the value in eax/rax before returning
 fn = mkfunction([
-    mov(eax,0xdeadbeef),
+    mov(rax, 0xdeadbeef),
     ret()
 ])
 

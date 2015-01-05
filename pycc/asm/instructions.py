@@ -133,9 +133,9 @@ class mov(Instruction):
         (('r/m64', 'r64'), ['REX.W + 89 /r', 'mr', True, False]),
         
         (('r8', 'r/m8'),   ['8a /r', 'rm', True, True]),
-        (('r16', 'r/m16'),   ['8b /r', 'rm', True, True]),
-        (('r32', 'r/m32'),   ['8b /r', 'rm', True, True]),
-        (('r64', 'r/m64'),   ['REX.W + 8b /r', 'rm', True, False]),
+        (('r16', 'r/m16'), ['8b /r', 'rm', True, True]),
+        (('r32', 'r/m32'), ['8b /r', 'rm', True, True]),
+        (('r64', 'r/m64'), ['REX.W + 8b /r', 'rm', True, False]),
         
         (('r8', 'imm8'),   ['b0+rb', 'oi', True, True]),
         (('r16', 'imm16'), ['b8+rw', 'oi', True, True]),
@@ -157,23 +157,46 @@ class mov(Instruction):
     }
 
 
-def movsd(dst, src):
-    """
-    MOVSD xmm1, xmm2/m64
-    Opcode (mem=>xmm): f2 0f 10 /r
+class movsd(Instruction):
+    """MOVSD moves a scalar double-precision floating-point value from the 
+    source operand (second operand) to the destination operand (first operand).
     
-    MOVSD xmm2/m64, xmm1
-    Opcode (xmm=>mem): f2 0f 11 /r
-    
-    Move scalar double-precision float
+    The source and destination operands can be XMM registers or 64-bit memory
+    locations. This instruction can be used to move a double-precision 
+    floating-point value to and from the low quadword of an XMM register and a
+    64-bit memory location, or to move a double-precision floating-point value
+    between the low quadwords of two XMM registers. The instruction cannot be
+    used to transfer data between memory locations.
     """
-    modrm = ModRmSib(dst, src)
-    if modrm.argtypes in ('rr', 'rm'):
-        assert dst.bits == 128
-        return '\xf2\x0f\x10' + modrm.code
-    else:
-        assert src.bits == 128
-        return '\xf2\x0f\x11' + modrm.code
+    name = 'movsd'
+    
+    modes = collections.OrderedDict([
+        (('xmm1', 'xmm2/m64'),   ['f20f10 /r', 'rm', True, True, 'sse2']),
+        (('xmm1', 'm64'),   ['f20f11 /r', 'mr', True, True, 'sse2']),
+    ])
+    
+    operand_enc = {
+        'mr': ['ModRM:r/m (w)', 'ModRM:reg (r)'],
+        'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
+    }
+    
+#def movsd(dst, src):
+    #"""
+    #MOVSD xmm1, xmm2/m64
+    #Opcode (mem=>xmm): f2 0f 10 /r
+    
+    #MOVSD xmm2/m64, xmm1
+    #Opcode (xmm=>mem): f2 0f 11 /r
+    
+    #Move scalar double-precision float
+    #"""
+    #modrm = ModRmSib(dst, src)
+    #if modrm.argtypes in ('rr', 'rm'):
+        #assert dst.bits == 128
+        #return '\xf2\x0f\x10' + modrm.code
+    #else:
+        #assert src.bits == 128
+        #return '\xf2\x0f\x11' + modrm.code
         
 
 

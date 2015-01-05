@@ -1,7 +1,7 @@
 # -'- coding: utf-8 -'-
 from __future__ import division
-import mmap
-
+import mmap, ctypes
+from .instruction import Instruction, Code, Label
 
 class CodePage(object):
     """
@@ -58,16 +58,17 @@ class CodePage(object):
         symbols = self.labels.copy()
         code = ''
         for cmd in asm:
-            if isinstance(cmd, str):
-                code += cmd
-            else:
+            if isinstance(cmd, Instruction):
+                cmd = cmd.code
+                
+            if isinstance(cmd, Code):
                 # Make some special symbols available when resolving
                 # expressions:
                 symbols['instr_addr'] = self.page_addr + len(code)
                 symbols['next_instr_addr'] = symbols['instr_addr'] + len(cmd)
                 
-                code += cmd.compile(symbols)
-                
+                cmd = cmd.compile(symbols)
+            code += cmd
         return code
         
         
