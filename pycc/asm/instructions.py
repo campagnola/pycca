@@ -1,12 +1,13 @@
+# -'- coding: utf-8 -'-
+from __future__ import division
+import collections
 
+from .instruction import Instruction, RelBranchInstruction
 
 
 #   Procedure management instructions
 #----------------------------------------
 
-
-instruction_modes = {}
-instruction_op_enc = {}
 
 class push(Instruction):
     """Push register, memory, or immediate onto the stack.

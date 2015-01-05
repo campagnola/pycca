@@ -1,3 +1,8 @@
+# -'- coding: utf-8 -'-
+from __future__ import division
+import sys
+
+from . import ARCH
 
 #   Register definitions
 #----------------------------------------
@@ -178,3 +183,6 @@ elif ARCH == 64:
     else:
         argi = [rdi, rsi, rdx, rcx, r8, r9]
         argf = [xmm0, xmm1, xmm2, xmm3, xmm4, xmm5, xmm6, xmm7]
+
+
+from .pointer import Pointer

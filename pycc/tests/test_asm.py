@@ -1,5 +1,10 @@
+# -'- coding: utf-8 -'-
+from __future__ import division
 from pytest import raises
 from pycc.asm import *
+from pycc.asm.instruction import interpret
+from pycc.asm.pointer import rex, pack_int
+
     
 regs = {}
 for name,obj in globals().items():
@@ -9,6 +14,7 @@ for name,obj in globals().items():
         if 'mm' not in obj.name:
             # general-purpose registers
             regs.setdefault('gp', []).append(obj)
+
 
 def itest(instr, *args):
     """Generic instruction test: ensure that output of our function matches

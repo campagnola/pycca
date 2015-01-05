@@ -1,3 +1,11 @@
+# -'- coding: utf-8 -'-
+from __future__ import division
+import struct, collections
+
+from .register import Register
+from .pointer import Pointer, pack_int, ModRmSib, interpret, rex
+from . import ARCH
+
 
 #   Misc. utilities required by instructions
 #------------------------------------------------
@@ -56,56 +64,6 @@ class Label(object):
         
     def compile(self, symbols):
         return ''
-
-
-
-def pack_int(x, int8=False, int16=True, int32=True, int64=True):
-    """Pack a signed integer into the smallest format possible.
-    """
-    modes = ['bhiq'[i] for i,m in enumerate([int8, int16, int32, int64]) if m]
-    for mode in modes:
-        try:
-            return struct.pack(mode, x)
-        except struct.error:
-            if mode == modes[-1]:
-                raise
-            # otherwise, try the next mode
-
-def pack_uint(x, uint8=False, uint16=True, uint32=True, uint64=True):
-    """Pack an unsigned integer into the smallest format possible.
-    """
-    modes = ['BHIQ'[i] for i,m in enumerate([uint8, uint16, uint32, uint64]) if m]
-    for mode in modes:
-        try:
-            return struct.pack(mode, x)
-        except struct.error:
-            if mode == modes[-1]:
-                raise
-            # otherwise, try the next mode
-
-
-def interpret(arg):
-    """General function for interpreting instruction arguments.
-    
-    This converts list arguments to Pointer, allowing syntax like::
-    
-        mov(rax, [0x1000])  # 0x1000 is a memory address
-        mov(rax, 0x1000)    # 0x1000 is an immediate value
-    """
-    if isinstance(arg, list):
-        assert len(arg) == 1
-        arg = arg[0]
-        if isinstance(arg, Register):
-            return Pointer(reg1=arg)
-        elif isinstance(arg, int):
-            return Pointer(disp=arg)
-        elif isinstance(arg, Pointer):
-            return arg
-        else:
-            raise TypeError("List arguments may only contain a single int, "
-                            "Register, or Pointer.")
-    else:
-        return arg
 
 
 

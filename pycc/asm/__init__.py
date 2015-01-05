@@ -43,5 +43,15 @@ Official, obtuse reference:
 http://www.intel.com/content/www/us/en/processors/architectures-software-developer-manuals.html
 """
 
+import sys
 
+if sys.maxsize > 2**32:
+    ARCH = 64
+else:
+    ARCH = 32
 
+from .instructions import *
+from .register import *
+from .pointer import byte, word, dword, qword
+from .codepage import CodePage, mkfunction
+from .util import *
