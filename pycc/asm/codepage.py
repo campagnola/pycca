@@ -1,5 +1,5 @@
 # -'- coding: utf-8 -'-
-from __future__ import division
+
 import mmap, ctypes
 from .instruction import Instruction, Code, Label
 

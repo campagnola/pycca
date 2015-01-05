@@ -10,10 +10,10 @@ try:
 except ImportError:
     pass
 
-print """
+print("""
    Example 1: Write a string to stdout
 ------------------------------------------------------
-"""
+""")
 
 msg = ctypes.create_string_buffer("Howdy.\n")
 if ARCH == 32:
@@ -41,10 +41,10 @@ fn.restype = ctypes.c_uint64
 fn()
 
 
-print """
+print("""
    Example 2: Return a value from call
 ------------------------------------------------------
-"""
+""")
 
 # just leave the value in eax/rax before returning
 fn = mkfunction([
@@ -56,13 +56,13 @@ fn = mkfunction([
 fn.restype = ctypes.c_uint64
 
 # Call! Hopefully we get 0xdeadbeef back.
-print "Return: 0x%x" % fn()
+print("Return: 0x%x" % fn())
 
 
-print """
+print("""
    Example 3: Pass arguments to function
 ------------------------------------------------------
-"""
+""")
 
 # There are a few different calling conventions we might want to support..
 # This example uses the System V AMD64 convention (used by most *nixes)
@@ -80,13 +80,13 @@ fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
 msg1 = ctypes.create_string_buffer("original original")
 msg2 = ctypes.create_string_buffer("modified modified")
 fn(msg1, msg2)
-print 'Modified string: "%s"' % msg1.value
+print('Modified string: "%s"' % msg1.value)
 
 
-print """
+print("""
    Example 4: Call an external function
 ------------------------------------------------------
-"""
+""")
 
 # Again we need to worry about calling conventions here.
 # Most common 64-bit conventions pass the first float arg in xmm0
@@ -106,13 +106,13 @@ op = 3.1415
 exp.restype = ctypes.c_double
 exp.argtypes = (ctypes.c_double,)
 out = exp(op)
-print "exp(%f) = %f =? %f" % (op, out, np.exp(op))
+print("exp(%f) = %f =? %f" % (op, out, np.exp(op)))
 
 
-print """
+print("""
    Example 5: Jump to label
 ----------------------------------------------
-"""
+""")
 
 fn = mkfunction([
     mov(rax, 0x1),
@@ -129,13 +129,13 @@ fn = mkfunction([
 fn.restype = ctypes.c_uint64
 
 # We get 0xdeadbeef back if jumps are followed.
-print "Return: 0x%x" % fn()
+print("Return: 0x%x" % fn())
 
 
-print """
+print("""
    Example 6: Access values from an array
 ------------------------------------------------------
-"""
+""")
 
 import numpy as np
 data = np.ones(10, dtype=np.uint64)
@@ -151,14 +151,14 @@ fn = mkfunction([
 ])
 fn.restype = ctypes.c_uint64
 
-print "Read from array: %d" % fn()
-print "Modified array: %d" % data[5]
+print("Read from array: %d" % fn())
+print("Modified array: %d" % data[5])
 
 
-print """
+print("""
    Example 7: a basic for-loop
 ------------------------------------------------------
-"""
+""")
 
 fn = mkfunction([
     mov(rax, 0),
@@ -172,13 +172,13 @@ fn = mkfunction([
 ])
 
 fn.restype = ctypes.c_uint64
-print "Iterate to 10:", fn()
+print("Iterate to 10:", fn())
 
 
-print """
+print("""
    Example 7: a useful function!
 ------------------------------------------------------
-"""
+""")
 
 find_first = mkfunction([
     mov(rax, 0),
@@ -209,6 +209,6 @@ ind2 = np.argwhere(data >= 0)[0,0]
 duration2 = time.time() - start
 
 assert ind1 == ind2
-print "First >= 0:", ind1
-print "ASM version took %0.2fms" % (duration1*1000) 
-print "NumPy version took %0.2fms" % (duration2*1000) 
+print("First >= 0:", ind1)
+print("ASM version took %0.2fms" % (duration1*1000)) 
+print("NumPy version took %0.2fms" % (duration2*1000)) 

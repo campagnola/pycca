@@ -1,22 +1,22 @@
 # -'- coding: utf-8 -'-
-from __future__ import division
-import re, tempfile, subprocess
+
+import re, sys, tempfile, subprocess
 
 def phex(code):
     if not isinstance(code, list):
         code = [code]
     for instr in code:
         for c in instr:
-            print '%02x' % ord(c),
-        print ''
+            sys.stdout.write('%02x' % ord(c))
+        print('')
 
 def pbin(code):
     if not isinstance(code, list):
         code = [code]
     for instr in code:
         for c in instr:
-            print format(ord(c), '08b'),
-        print ''
+            sys.stdout.write(format(ord(c), '08b'))
+        print('')
 
 def phexbin(code):
     if not isinstance(code, list):
@@ -28,7 +28,7 @@ def phexbin(code):
         line += ' ' * (40 - len(line))
         for c in instr:
             line += format(ord(c), '08b') + ' '
-        print line
+        print(line)
 
 
 def compare(instr_class, *args):
@@ -47,7 +47,7 @@ def compare(instr_class, *args):
             arg = Pointer(arg[0])
         args2.append(arg)
     asm = instr_class.__name__ + ' ' + ', '.join(map(str, args2))
-    print "asm:  ", asm
+    print("asm:  ", asm)
     
     try:
         code2 = as_code(asm)
@@ -56,21 +56,21 @@ def compare(instr_class, *args):
         failed2 = True
         
     if failed1 and not failed2:
-        print "[pycc failed; gnu as did not]"
+        print("[pycc failed; gnu as did not]")
         phexbin(code2)
         raise exc1
     elif failed2 and not failed1:
         phexbin(code1)
-        print "[gnu as failed; pycc did not]"
+        print("[gnu as failed; pycc did not]")
         raise exc2
     elif failed1 and failed2:
-        print exc1.message
-        print "[pycc and gnu as both failed.]"
+        print(exc1.message)
+        print("[pycc and gnu as both failed.]")
     else:
         phexbin(code1)
         phexbin(code2)
         if code1 == code2:
-            print "[codes match]"
+            print("[codes match]")
 
 
 def run_as(asm):
@@ -94,9 +94,9 @@ def run_as(asm):
     for i,line in enumerate(out):
         if "Disassembly of section .text:" in line:
             return out[i+3:]
-    print "--- code: ---"
-    print asm
-    print "-------------"
+    print("--- code: ---")
+    print(asm)
+    print("-------------")
     exc = Exception("Error running 'as' or 'objdump' (see above).")
     exc.asm = asm
     raise exc

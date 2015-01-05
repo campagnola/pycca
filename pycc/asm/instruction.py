@@ -1,5 +1,5 @@
 # -'- coding: utf-8 -'-
-from __future__ import division
+
 import struct, collections
 
 from .register import Register
@@ -38,7 +38,7 @@ class Code(object):
     
     def compile(self, symbols):
         code = self.code
-        for i,repl in self.replacements.items():
+        for i,repl in list(self.replacements.items()):
             expr, packing = repl
             val = eval(expr, symbols)
             val = struct.pack(packing, val)
@@ -252,7 +252,7 @@ class Instruction(object):
         
         # filter out modes not supported by this arch
         archind = 2 if ARCH == 64 else 3
-        modes = collections.OrderedDict([sm for sm in modes.items() if sm[1][archind]])
+        modes = collections.OrderedDict([sm for sm in list(modes.items()) if sm[1][archind]])
         
         #print "Select instruction mode for sig:", sig
         #print "Available modes:", modes

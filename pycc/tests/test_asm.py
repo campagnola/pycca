@@ -1,5 +1,5 @@
 # -'- coding: utf-8 -'-
-from __future__ import division
+
 from pytest import raises
 from pycc.asm import *
 from pycc.asm.instruction import interpret
@@ -7,7 +7,7 @@ from pycc.asm.pointer import rex, pack_int
 
     
 regs = {}
-for name,obj in globals().items():
+for name,obj in list(globals().items()):
     if isinstance(obj, Register):
         regs.setdefault('all', []).append(obj)
         regs.setdefault(obj.bits, []).append(obj)
