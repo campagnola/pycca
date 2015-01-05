@@ -21,7 +21,7 @@ def itest(instr, *args):
     args = args[:-1]
     
     try:
-        code1 = instr(*args)
+        code1 = instr(*args).code
     except TypeError as exc:
         # Only pass if assembler also generates error
         try:
@@ -92,19 +92,19 @@ def test_pack_int():
 
 # Move instructions
 
-#def test_mov():
-    #assert mov(eax, 0x1234567) == as_code('mov eax,0x1234567')
-    #assert mov(eax, ebx) == as_code('mov eax,ebx')
-    #assert mov(rax, 0x1234567891) == as_code('mov rax,0x1234567891')
-    #assert mov(rax, rbx) == as_code('mov rax,rbx')
-    #assert mov([0x12345], rax) == as_code('mov qword ptr [0x12345], rax')
-    #assert mov([0x12345], eax) == as_code('mov dword ptr [0x12345], eax')
-    #assert mov(rax, [0x12345]) == as_code('mov rax, qword ptr [0x12345]')
-    #assert mov(eax, [0x12345]) == as_code('mov eax, dword ptr [0x12345]')
-    #assert mov(rax, [rbx]) == as_code('mov rax, qword ptr [rbx]')
-    #assert mov(rax, [rcx+rbx]) == as_code('mov rax, qword ptr [rbx+rcx]')
-    #assert mov(rax, [8*rbx+rcx]) == as_code('mov rax, qword ptr [8*rbx+rcx]')
-    #assert mov(rax, [0x1000+8*rbx+rcx]) == as_code('mov rax, qword ptr 0x1000[8*rbx+rcx]')
+def test_mov():
+    assert mov(eax, 0x1234567) == as_code('mov eax,0x1234567')
+    assert mov(eax, ebx) == as_code('mov eax,ebx')
+    assert mov(rax, 0x1234567891) == as_code('mov rax,0x1234567891')
+    assert mov(rax, rbx) == as_code('mov rax,rbx')
+    assert mov(qword([0x12345]), rax) == as_code('mov qword ptr [0x12345], rax')
+    assert mov(dword([0x12345]), eax) == as_code('mov dword ptr [0x12345], eax')
+    assert mov(rax, qword([0x12345])) == as_code('mov rax, qword ptr [0x12345]')
+    assert mov(eax, dword([0x12345])) == as_code('mov eax, dword ptr [0x12345]')
+    assert mov(rax, qword([rbx])) == as_code('mov rax, qword ptr [rbx]')
+    assert mov(rax, qword([rcx+rbx])) == as_code('mov rax, qword ptr [rcx+rbx]')
+    assert mov(rax, qword([8*rbx+rcx])) == as_code('mov rax, qword ptr [8*rbx+rcx]')
+    assert mov(rax, qword([0x1000+8*rbx+rcx])) == as_code('mov rax, qword ptr 0x1000[8*rbx+rcx]')
     
 #def test_movsd():
     #assert movsd(xmm1, [rax+rbx*4+0x1000]) == as_code('movsd xmm1, qword ptr [rax+rbx*4+0x1000]')

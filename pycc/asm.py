@@ -1206,7 +1206,7 @@ class Instruction(object):
             # look up encoding for this operand
             enc = operand_enc[mode[1]][i]
             #print "operand encoding:", i, arg, enc 
-            if enc == 'opcode +rd (r)':
+            if enc.startswith('opcode +rd'):
                 opcode_reg = arg.val
                 if arg.rex:
                     rex_byt = rex_byt | rex.b
@@ -1436,6 +1436,7 @@ class call(RelBranchInstruction):
     called procedure. The operand can be an immediate value, a general-purpose 
     register, or a memory location.
     """
+    name = "call"
     
     # generate absolute call
     modes = {
@@ -1502,68 +1503,110 @@ class call(RelBranchInstruction):
 #   Data moving instructions
 #----------------------------------------
 
-def mov(a, b):
-    a = interpret(a)
-    b = interpret(b)
+class mov(Instruction):
+    """Copies the second operand (source operand) to the first operand 
+    (destination operand). 
     
-    if isinstance(a, Register):
-        if isinstance(b, Register):
-            # Copy register to register
-            return mov_rm_r(a, b)
-        elif isinstance(b, (int, long)):
-            # Copy immediate value to register
-            return mov_r_imm(a, b)
-        elif isinstance(b, Pointer):
-            # Copy memory to register
-            return mov_r_rm(a, b)
-        else:
-            raise TypeError("mov second argument must be Register, immediate, "
-                            "or Pointer")
-    elif isinstance(a, Pointer):
-        if isinstance(b, Register):
-            # Copy register to memory
-            return mov_rm_r(a, b)
-        elif isinstance(b, (int, long)):
-            # Copy immediate value to memory
-            raise NotImplementedError("mov imm=>addr not implemented")
-        else:
-            raise TypeError("mov second argument must be Register or immediate"
-                            " when first argument is Pointer")
-    else:
-        raise TypeError("mov first argument must be Register or Pointer")
-
-def mov_r_rm(r, rm, opcode='\x8b'):
-    """ MOV R,R/M
-    
-    Opcode: 8b /r (uses mod_reg_r/m byte)
-    Op/En: RM (REG is dest; R/M is source)
-    Move from R/M to R
+    The source operand can be an immediate value, general-purpose register, 
+    segment register, or memory location; the destination register can be a 
+    general-purpose register, segment register, or memory location. Both 
+    operands must be the same size, which can be a byte, a word, a doubleword,
+    or a quadword.
     """
-    # Note: as with many opcodes, flipping bit 6 swaps the R->RM order
-    #       yielding 0x89 (mov_rm_r)
-    inst = ""
-    if r.bits == 64:
-        inst += rex.w
-    elif r.bits != 32:
-        raise NotImplementedError('register bit size %d not supported' % r.bits)
-    inst += opcode
+    name = 'mov'
     
-    if isinstance(rm, Register):
-        # direct register-register copy
-        inst += mod_reg_rm('dir', r, rm)
-    elif isinstance(rm, Pointer):
-        # memory to register copy
-        inst += rm.modrm_sib(r)
+    modes = collections.OrderedDict([
+        (('r/m8', 'r8'),   ['88 /r', 'mr', True, True]),
+        (('r/m16', 'r16'), ['89 /r', 'mr', True, True]),
+        (('r/m32', 'r32'), ['89 /r', 'mr', True, True]),
+        (('r/m64', 'r64'), ['REX.W + 89 /r', 'mr', True, False]),
         
-    return inst
+        (('r8', 'r/m8'),   ['8a /r', 'rm', True, True]),
+        (('r16', 'r/m16'),   ['8b /r', 'rm', True, True]),
+        (('r32', 'r/m32'),   ['8b /r', 'rm', True, True]),
+        (('r64', 'r/m64'),   ['REX.W + 8b /r', 'rm', True, False]),
+        
+        (('r8', 'imm8'),   ['b0+rb', 'oi', True, True]),
+        (('r16', 'imm16'), ['b8+rw', 'oi', True, True]),
+        (('r32', 'imm32'), ['b8+rd', 'oi', True, True]),
+        (('r64', 'imm64'), ['REX.W + b8+rq', 'oi', True, False]),
+        
+        (('r/m8', 'imm8'),   ['c6 /0', 'mi', True, True]),
+        (('r/m16', 'imm16'), ['c7 /0', 'mi', True, True]),
+        (('r/m32', 'imm32'), ['c7 /0', 'mi', True, True]),
+        (('r/m64', 'imm32'), ['REX.W + c7 /0', 'mi', True, False]),
+        
+    ])
 
-def mov_rm_r(rm, r):
-    """ MOV R/M,R
+    operand_enc = {
+        'oi': ['opcode +rd (w)', 'imm8/16/32/64'],
+        'mi': ['ModRM:r/m (w)', 'imm8/16/32'],
+        'mr': ['ModRM:r/m (w)', 'ModRM:reg (r)'],
+        'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
+    }
+
+#def mov(a, b):
+    #a = interpret(a)
+    #b = interpret(b)
     
-    Opcode: 89 /r
-    Move from R to R/M
-    """
-    return mov_r_rm(r, rm, opcode='\x89')
+    #if isinstance(a, Register):
+        #if isinstance(b, Register):
+            ## Copy register to register
+            #return mov_rm_r(a, b)
+        #elif isinstance(b, (int, long)):
+            ## Copy immediate value to register
+            #return mov_r_imm(a, b)
+        #elif isinstance(b, Pointer):
+            ## Copy memory to register
+            #return mov_r_rm(a, b)
+        #else:
+            #raise TypeError("mov second argument must be Register, immediate, "
+                            #"or Pointer")
+    #elif isinstance(a, Pointer):
+        #if isinstance(b, Register):
+            ## Copy register to memory
+            #return mov_rm_r(a, b)
+        #elif isinstance(b, (int, long)):
+            ## Copy immediate value to memory
+            #raise NotImplementedError("mov imm=>addr not implemented")
+        #else:
+            #raise TypeError("mov second argument must be Register or immediate"
+                            #" when first argument is Pointer")
+    #else:
+        #raise TypeError("mov first argument must be Register or Pointer")
+
+#def mov_r_rm(r, rm, opcode='\x8b'):
+    #""" MOV R,R/M
+    
+    #Opcode: 8b /r (uses mod_reg_r/m byte)
+    #Op/En: RM (REG is dest; R/M is source)
+    #Move from R/M to R
+    #"""
+    ## Note: as with many opcodes, flipping bit 6 swaps the R->RM order
+    ##       yielding 0x89 (mov_rm_r)
+    #inst = ""
+    #if r.bits == 64:
+        #inst += rex.w
+    #elif r.bits != 32:
+        #raise NotImplementedError('register bit size %d not supported' % r.bits)
+    #inst += opcode
+    
+    #if isinstance(rm, Register):
+        ## direct register-register copy
+        #inst += mod_reg_rm('dir', r, rm)
+    #elif isinstance(rm, Pointer):
+        ## memory to register copy
+        #inst += rm.modrm_sib(r)
+        
+    #return inst
+
+#def mov_rm_r(rm, r):
+    #""" MOV R/M,R
+    
+    #Opcode: 89 /r
+    #Move from R to R/M
+    #"""
+    #return mov_r_rm(r, rm, opcode='\x89')
 
 #def mov_rm32_r32(rm, r):
     #""" MOV R/M,R
@@ -1587,21 +1630,21 @@ def mov_rm_r(rm, r):
     ##       yielding 0x8B (mov_r_rm)
     #return rex.w + '\x89' + mod_reg_rm('dir', r, rm)
 
-def mov_r_imm(r, val, fmt=None):
-    """ MOV REG,VAL
+#def mov_r_imm(r, val, fmt=None):
+    #""" MOV REG,VAL
     
-    Opcode(32): b8+r
-    Opcode(64): REX.W + b8 + rd io
-    Move VAL (32/64 bit immediate as unsigned int) to REG.
-    """
-    if r.bits == 32:
-        fmt = '<I' if fmt is None else fmt
-        return chr(0xb8 | r.val) + struct.pack(fmt, val)
-    elif r.bits == 64:
-        fmt = '<Q' if fmt is None else fmt
-        return rex.w + chr(0xb8 | r.val) + struct.pack(fmt, val)
-    else:
-        raise NotImplementedError('register bit size %d not supported' % r.bits)
+    #Opcode(32): b8+r
+    #Opcode(64): REX.W + b8 + rd io
+    #Move VAL (32/64 bit immediate as unsigned int) to REG.
+    #"""
+    #if r.bits == 32:
+        #fmt = '<I' if fmt is None else fmt
+        #return chr(0xb8 | r.val) + struct.pack(fmt, val)
+    #elif r.bits == 64:
+        #fmt = '<Q' if fmt is None else fmt
+        #return rex.w + chr(0xb8 | r.val) + struct.pack(fmt, val)
+    #else:
+        #raise NotImplementedError('register bit size %d not supported' % r.bits)
 
 def movsd(dst, src):
     """
@@ -1729,6 +1772,7 @@ class lea(Instruction):
     the processors addressing modes; the destination operand is a general-
     purpose register.
     """
+    name = "lea"
 
     modes = collections.OrderedDict([
         (('r16', 'm'), ['8d /r', 'rm', True, True]),
@@ -1776,6 +1820,7 @@ class dec(Instruction):
     flag. (To perform a decrement operation that updates the CF flag, use a SUB
     instruction with an immediate operand of 1.)
     """
+    name = "dec"
 
     modes = collections.OrderedDict([
         (('r/m8',),  ['fe /1', 'm', True, True]),
@@ -1789,7 +1834,7 @@ class dec(Instruction):
 
     operand_enc = {
         'm': ['ModRM:r/m (r,w)'],
-        'o': ['opcode + rd (r, w)'],
+        'o': ['opcode +rd (r, w)'],
     }
 
     
@@ -1814,6 +1859,7 @@ class inc(Instruction):
     flag. (Use a ADD instruction with an immediate operand of 1 to perform an
     increment operation that does updates the CF flag.)
     """    
+    name = "inc"
 
     modes = collections.OrderedDict([
         (('r/m8',),  ['fe /0', 'm', True, True]),
@@ -1827,7 +1873,7 @@ class inc(Instruction):
 
     operand_enc = {
         'm': ['ModRM:r/m (r,w)'],
-        'o': ['opcode + rd (r, w)'],
+        'o': ['opcode +rd (r, w)'],
     }
 
 
@@ -1869,6 +1915,7 @@ class imul(Instruction):
     operand) is truncated and stored in the destination operand (a 
     general-purpose register).
     """
+    name = "imul"
 
     modes = collections.OrderedDict([
         (('r16', 'r/m16'),   ['0faf /r', 'rm', True, True]),
@@ -1911,6 +1958,7 @@ class idiv(Instruction):
     register or a memory location. The action of this instruction depends on 
     the operand size (dividend/divisor).
     """
+    name = "idiv"
 
     modes = collections.OrderedDict([
         (('r/m8',), ('f6 /7', 'm', True, True)),
@@ -1950,6 +1998,8 @@ class cmp(Instruction):
     SUB instruction. When an immediate value is used as an operand, it is 
     sign-extended to the length of the first operand.
     """
+    name = "cmp"
+    
     modes = collections.OrderedDict([
         (('r/m8', 'imm8'), ('80 /7', 'mi', True, True)),
         (('r/m16', 'imm16'), ('81 /7', 'mi', True, True)),
@@ -2009,6 +2059,8 @@ class cmp(Instruction):
     #return inst.code
 
 class test(Instruction):
+    name = "test"
+    
     modes = collections.OrderedDict([
         (('r/m8', 'imm8'), ('f6 /0', 'mi', True, True)),
         (('r/m16', 'imm16'), ('f7 /0', 'mi', True, True)),
@@ -2056,6 +2108,8 @@ class test(Instruction):
 #----------------------------------------
 
 class jmp(RelBranchInstruction):
+    name = "jmp"
+    
     # generate absolute call
     modes = {
         ('rel8',): ['eb', 'i', True, True],
@@ -2119,36 +2173,36 @@ def _jcc(name, opcode, doc):
                                                 '__doc__': doc}) 
 
 
-ja = _jcc('ja', '0f87', """Jump near if above (CF=0 and ZF=0).""")
-jae = _jcc('jae', '0f83', """Jump near if above or equal (CF=0).""")
-jb = _jcc('jb', '0f82', """Jump near if below (CF=1).""")
-jbe = _jcc('jbe', '0f86', """Jump near if below or equal (CF=1 or ZF=1).""")
-jc = _jcc('jc', '0f82', """Jump near if carry (CF=1).""")
-je = _jcc('je', '0f84', """Jump near if equal (ZF=1).""")
-jz = _jcc('jz', '0f84', """Jump near if 0 (ZF=1).""")
-jg = _jcc('jg', '0f8f', """Jump near if greater (ZF=0 and SF=OF).""")
-jge = _jcc('jge', '0f8d', """Jump near if greater or equal (SF=OF).""")
-jl = _jcc('jl', '0f8c', """Jump near if less (SF≠ OF).""")
-jle = _jcc('jle', '0f8e', """Jump near if less or equal (ZF=1 or SF≠ OF).""")
-jna = _jcc('jna', '0f86', """Jump near if not above (CF=1 or ZF=1).""")
+ja   = _jcc('ja',   '0f87', """Jump near if above (CF=0 and ZF=0).""")
+jae  = _jcc('jae',  '0f83', """Jump near if above or equal (CF=0).""")
+jb   = _jcc('jb',   '0f82', """Jump near if below (CF=1).""")
+jbe  = _jcc('jbe',  '0f86', """Jump near if below or equal (CF=1 or ZF=1).""")
+jc   = _jcc('jc',   '0f82', """Jump near if carry (CF=1).""")
+je   = _jcc('je',   '0f84', """Jump near if equal (ZF=1).""")
+jz   = _jcc('jz',   '0f84', """Jump near if 0 (ZF=1).""")
+jg   = _jcc('jg',   '0f8f', """Jump near if greater (ZF=0 and SF=OF).""")
+jge  = _jcc('jge',  '0f8d', """Jump near if greater or equal (SF=OF).""")
+jl   = _jcc('jl',   '0f8c', """Jump near if less (SF≠ OF).""")
+jle  = _jcc('jle',  '0f8e', """Jump near if less or equal (ZF=1 or SF≠ OF).""")
+jna  = _jcc('jna',  '0f86', """Jump near if not above (CF=1 or ZF=1).""")
 jnae = _jcc('jnae', '0f82', """Jump near if not above or equal (CF=1).""")
-jnb = _jcc('jnb', '0f83', """Jump near if not below (CF=0).""")
+jnb  = _jcc('jnb',  '0f83', """Jump near if not below (CF=0).""")
 jnbe = _jcc('jnbe', '0f87', """Jump near if not below or equal (CF=0 and ZF=0).""")
-jnc = _jcc('jnc', '0f83', """Jump near if not carry (CF=0).""")
-jne = _jcc('jne', '0f85', """Jump near if not equal (ZF=0).""")
-jng = _jcc('jng', '0f8e', """Jump near if not greater (ZF=1 or SF≠ OF).""")
+jnc  = _jcc('jnc',  '0f83', """Jump near if not carry (CF=0).""")
+jne  = _jcc('jne',  '0f85', """Jump near if not equal (ZF=0).""")
+jng  = _jcc('jng',  '0f8e', """Jump near if not greater (ZF=1 or SF≠ OF).""")
 jnge = _jcc('jnge', '0f8c', """Jump near if not greater or equal (SF ≠ OF).""")
-jnl = _jcc('jnl', '0f8d', """Jump near if not less (SF=OF).""")
+jnl  = _jcc('jnl',  '0f8d', """Jump near if not less (SF=OF).""")
 jnle = _jcc('jnle', '0f8f', """Jump near if not less or equal (ZF=0 and SF=OF).""")
-jno = _jcc('jno', '0f81', """Jump near if not overflow (OF=0).""")
-jnp = _jcc('jnp', '0f8b', """Jump near if not parity (PF=0).""")
-jns = _jcc('jns', '0f89', """Jump near if not sign (SF=0).""")
-jnz = _jcc('jnz', '0f85', """Jump near if not zero (ZF=0).""")
-jo = _jcc('jo', '0f80', """Jump near if overflow (OF=1).""")
-jp = _jcc('jp', '0f8a', """Jump near if parity (PF=1).""")
-jpe = _jcc('jpe', '0f8a', """Jump near if parity even (PF=1).""")
-jpo = _jcc('jpo', '0f8b', """Jump near if parity odd (PF=0).""")
-js = _jcc('js', '0f88', """Jump near if sign (SF=1).""")
+jno  = _jcc('jno',  '0f81', """Jump near if not overflow (OF=0).""")
+jnp  = _jcc('jnp',  '0f8b', """Jump near if not parity (PF=0).""")
+jns  = _jcc('jns',  '0f89', """Jump near if not sign (SF=0).""")
+jnz  = _jcc('jnz',  '0f85', """Jump near if not zero (ZF=0).""")
+jo   = _jcc('jo',   '0f80', """Jump near if overflow (OF=1).""")
+jp   = _jcc('jp',   '0f8a', """Jump near if parity (PF=1).""")
+jpe  = _jcc('jpe',  '0f8a', """Jump near if parity even (PF=1).""")
+jpo  = _jcc('jpo',  '0f8b', """Jump near if parity odd (PF=0).""")
+js   = _jcc('js',   '0f88', """Jump near if sign (SF=1).""")
 
 
 
