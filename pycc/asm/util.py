@@ -90,7 +90,8 @@ def run_as(asm):
     open(fname, 'w').write(asm)
     cmd = 'as {file} -o {file}.o && objdump -d {file}.o; rm -f {file} {file}.o'.format(file=fname)
     #print cmd
-    out = subprocess.check_output(cmd, shell=True).split('\n')
+    out = subprocess.check_output(cmd, shell=True)
+    out = out.decode('ascii').split('\n')
     for i,line in enumerate(out):
         if "Disassembly of section .text:" in line:
             return out[i+3:]
@@ -115,7 +116,7 @@ def as_code(asm):
         for byt in byts:
             if byt == '':
                 continue
-            code += bytes(chr(eval('0x'+byt)))
+            code += bytearray.fromhex(byt)
     return code
 
 

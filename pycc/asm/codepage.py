@@ -31,7 +31,7 @@ class CodePage(object):
         # Compile machine code and write to the page.
         code = self.compile(asm)
         assert len(code) <= len(self.page)
-        self.page.write(code)
+        self.page.write(bytes(code))
         
     def __len__(self):
         return sum(map(len, self.asm))

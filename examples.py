@@ -172,7 +172,7 @@ fn = mkfunction([
 ])
 
 fn.restype = ctypes.c_uint64
-print("Iterate to 10:", fn())
+print("Iterate to 10: %d" % fn())
 
 
 print("""
@@ -209,6 +209,6 @@ ind2 = np.argwhere(data >= 0)[0,0]
 duration2 = time.time() - start
 
 assert ind1 == ind2
-print("First >= 0:", ind1)
+print("First >= 0: %d" % ind1)
 print("ASM version took %0.2fms" % (duration1*1000)) 
 print("NumPy version took %0.2fms" % (duration2*1000)) 

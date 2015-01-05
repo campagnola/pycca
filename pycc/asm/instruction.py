@@ -200,10 +200,11 @@ class Instruction(object):
         return self.name + ' ' + ', '.join(map(str, args))
         
     def __eq__(self, code):
-        if isinstance(code, str):
+        if isinstance(code, (bytes, bytearray)):
             return self.code == code
         else:
-            raise TypeError("Unsupported type for Instruction.__eq__")
+            raise TypeError("Unsupported type '%s' for Instruction.__eq__" % 
+                            type(code))
         
     def read_signature(self):
         """Determine signature of argument types.
@@ -348,9 +349,10 @@ class Instruction(object):
             reg_in_opcode = False
         
         # assemble initial opcode
-        opcode = ''
-        for i in range(0, len(opcode_s), 2):
-            opcode += chr(int(opcode_s[i:i+2], 16))
+        #opcode = b''
+        #for i in range(0, len(opcode_s), 2):
+            #opcode += chr(int(opcode_s[i:i+2], 16))
+        opcode = bytearray.fromhex(opcode_s)
         
         # check for opcode extension
         opcode_ext = None
@@ -375,7 +377,7 @@ class Instruction(object):
 
         # encode register in opcode if requested
         if opcode_reg is not None:
-            opcode = opcode[:-1] + chr(ord(opcode[-1]) | opcode_reg)
+            opcode[-1] |= opcode_reg
         
         # encode ModR/M and SIB bytes
         operands = []
@@ -393,9 +395,9 @@ class Instruction(object):
             rex_byt |= rex.w
         
         if rex_byt == 0:
-            rex_byt = ''
+            rex_byt = b''
         else:
-            rex_byt = chr(rex_byt)
+            rex_byt = bytearray([rex_byt])
         
         self._prefixes = prefixes
         self._rex_byte = rex_byt
@@ -412,10 +414,10 @@ class Instruction(object):
         opcode = self.opcode
         operands = self.operands
         
-        self._code = (''.join(prefixes) + 
+        self._code = (b''.join(prefixes) + 
                       rex_byte + 
                       opcode + 
-                      ''.join(operands))
+                      b''.join(operands))
 
     def parse_operands(self):
         """Use supplied arguments and selected operand encodings to determine

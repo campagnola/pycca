@@ -333,7 +333,7 @@ class Pointer(object):
         if len(regs) == 0:
             return ''
         if max(regs) == ARCH//2:
-            return '\x67'
+            return b'\x67'
         return ''
         
     @property
@@ -460,7 +460,7 @@ class Pointer(object):
                     return mrex|srex, modrm + sib + disp
                 elif regs[0].val == 5 and disp == '':
                     mrex, modrm = mod_reg_rm('ind8', reg, regs[0])
-                    return mrex, modrm + '\x00'
+                    return mrex, modrm + b'\x00'
                 else:
                     # Put single register in r/m, add disp if needed.
                     mrex, modrm = mod_reg_rm(mod, reg, regs[0])
@@ -476,7 +476,7 @@ class Pointer(object):
                 elif regs[1].val == 5 and disp == '':
                     # if *bp is in base, we need to add 8bit disp
                     mod = 'ind8'
-                    disp = '\x00'
+                    disp = b'\x00'
                     
                 mrex, modrm = mod_reg_rm(mod, reg, 'sib')
                 srex, sib = mk_sib(0, regs[0], regs[1])
@@ -498,12 +498,12 @@ class Pointer(object):
 
             if base is not None and base.val == 5 and disp == '':
                 mod = 'ind8'
-                disp = '\x00'
+                disp = b'\x00'
             
             if base is None:
                 base = rbp
                 mod = 'ind'
-                disp = disp + '\0' * (4-len(disp))
+                disp = disp + b'\0' * (4-len(disp))
             
             mrex, modrm = mod_reg_rm(mod, reg, 'sib')
             srex, sib = mk_sib(byts, offset, base)
