@@ -58,6 +58,9 @@ class CodePage(object):
         symbols = self.labels.copy()
         code = ''
         for cmd in asm:
+            if isinstance(cmd, Label):
+                continue
+            
             if isinstance(cmd, Instruction):
                 cmd = cmd.code
                 
@@ -68,6 +71,7 @@ class CodePage(object):
                 symbols['next_instr_addr'] = symbols['instr_addr'] + len(cmd)
                 
                 cmd = cmd.compile(symbols)
+            
             code += cmd
         return code
         

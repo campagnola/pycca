@@ -96,39 +96,16 @@ libm = ctypes.cdll.LoadLibrary('libm.so.6')
 fp = (ctypes.c_char*8).from_address(ctypes.addressof(libm.exp))
 fp = struct.unpack('Q', fp[:8])[0]
 
-# prepare input operand
-op = 3.1415
-xop = struct.unpack('q', struct.pack('d', op))[0]
-
 exp = mkfunction([
-    push(rbp),
-    mov(rbp, rsp),
-    add(rsp, -0x10),          # increase stack depth
-    mov(rax, xop),            # place operand in rx => stack => xmm0
-    mov([rbp-0x10], rax),
-    movsd(xmm0, [rbp-0x10]),  
-    mov(rbx, fp),
-    call(rbx),                # call exp()
-    movsd([rbp-0x10], xmm0),  # copy result from xmm0 back to rax
-    mov(rax, [rbp-0x10]),
-    leave(),
-    ret(),
-    
-    # For some reason this version segfaults..
-    #add(rsp, -0x18),     # increase stack depth
-    #mov(rax, xop),       # place operand in xmm0
-    #mov([rsp], rax),
-    #movsd(xmm0, [rsp]),
-    #mov(rax, fp),        # set branch pointer
-    #call(rax),           # call exp()
-    #movsd([rsp], xmm0),  # copy result from xmm0 back to rax
-    #mov(rax, [rsp]),
-    #add(rsp, 0x18),      # decrease stack depth
-    #ret(),
+    mov(rax, fp),      # Load address of exp()
+    call(rax),         # call exp()  - input arg is already in xmm0
+    ret(),             # return; now output arg is in xmm0
 ])
 
+op = 3.1415
 exp.restype = ctypes.c_double
-out = exp()
+exp.argtypes = (ctypes.c_double,)
+out = exp(op)
 print "exp(%f) = %f =? %f" % (op, out, np.exp(op))
 
 
