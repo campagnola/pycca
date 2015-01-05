@@ -863,10 +863,21 @@ class Instruction(object):
     
     def __init__(self, *args):
         self.args = args
+
+        # Analysis of input arguments and the corresponding instruction
+        # mode to use 
         self._sig = None
-        self._clean_args = None
+        self._clean_args = None        
         self._use_sig = None
         self._mode = None
+        
+        # Compiled bytecode pieces
+        self._prefixes = None
+        self._rex_byte = None
+        self._opcode = None
+        self._operands = None
+        
+        # Complete, assembled instruction or Code instance
         self._code = None
 
     @property
@@ -915,6 +926,38 @@ class Instruction(object):
         if self._mode is None:
             self.select_instruction_mode()
         return self._mode
+
+    @property
+    def prefixes(self):
+        """List of string prefixes to use in the compiled instruction.
+        """
+        if self._prefixes is None:
+            self.generate_instruction_parts()
+        return self._prefixes
+
+    @property
+    def rex_byte(self):
+        """REX byte string to use in the compiled instruction.
+        """
+        if self._rex_byte is None:
+            self.generate_instruction_parts()
+        return self._rex_byte
+
+    @property
+    def opcode(self):
+        """Opcode string to use in the compiled instruction.
+        """
+        if self._opcode is None:
+            self.generate_instruction_parts()
+        return self._opcode
+
+    @property
+    def operands(self):
+        """List of compiled operands to use in the compiled instruction.
+        """
+        if self._operands is None:
+            self.generate_instruction_parts()
+        return self._operands
 
     @property
     def code(self):
@@ -1006,13 +1049,13 @@ class Instruction(object):
                 continue
             usemode = True
             for i in range(len(mode)):
-                sbits = sig[i].lstrip('ir/m')
+                sbits = sig[i].lstrip('irel/m')
                 stype = sig[i][:-len(sbits)]
                 if mode[i] == 'm':
                     usemode = stype == 'r/m'
                     break
                 
-                mbits = mode[i].lstrip('ir/m')
+                mbits = mode[i].lstrip('irel/m')
                 mtype = mode[i][:-len(mbits)]
                 mbits = int(mbits)
                 sbits = int(sbits)
@@ -1029,6 +1072,10 @@ class Instruction(object):
                     if stype != 'imm' or mbits < sbits:
                         usemode = False
                         break
+                elif mtype == 'rel':
+                    if stype != 'rel':
+                        usemode = False
+                        break
                 else:
                     raise Exception("operand type %s" % mtype)
             
@@ -1040,13 +1087,15 @@ class Instruction(object):
         raise TypeError('Argument types not accepted for this instruction: %s' 
                         % str(orig_sig))
 
-    def generate_code(self):
-        """Generate complete bytecode for this instruction.
+    def generate_instruction_parts(self):
+        """Generate bytecode strings for each piece of the instruction.
         
-        Sets self.code.
+        Sets self._prefixes, self._rex_byte, self._opcode, and self._operands
         """
         # parse opcode string (todo: these should be pre-parsed)
-        op_parts = self.mode[0].split(' ')
+        mode = self.mode
+        
+        op_parts = mode[0].split(' ')
         rexw = False
         if op_parts[:2] == ['REX.W', '+']:
             op_parts = op_parts[2:]
@@ -1109,8 +1158,25 @@ class Instruction(object):
         else:
             rex_byt = chr(rex_byt)
         
-        # assemble!
-        self._code = ''.join(prefixes) + rex_byt + opcode + ''.join(operands)
+        self._prefixes = prefixes
+        self._rex_byte = rex_byt
+        self._opcode = opcode
+        self._operands = operands
+        
+    def generate_code(self):
+        """Generate complete bytecode for this instruction.
+        
+        Sets self._code.
+        """
+        prefixes = self.prefixes
+        rex_byte = self.rex_byte
+        opcode = self.opcode
+        operands = self.operands
+        
+        self._code = (''.join(prefixes) + 
+                      rex_byte + 
+                      opcode + 
+                      ''.join(operands))
 
     def parse_operands(self):
         """Use supplied arguments and selected operand encodings to determine
@@ -1175,19 +1241,7 @@ class RelBranchInstruction(Instruction):
     """
     def __init__(self, addr):
         self._label = None
-        # location of relative address within instruction code
-        self._addr_offset = None  
-        # final length of instruction (used to compute relative address)
-        self._instr_len = None  
-        
         Instruction.__init__(self, addr)
-        
-    def generate_code(self):
-        Instruction.generate_code(self)
-        if self._label is not None:
-            code = Code(self._code)
-            code.replace(self._addr_offset, "%s - next_instr_addr" % self._label, 'i')
-            self._code = code
             
     def read_signature(self):
         if len(self.args) != 1:
@@ -1195,16 +1249,54 @@ class RelBranchInstruction(Instruction):
         
         # Need to intercept immediate args and subtract instr_len or set label
         addr = self.args[0]
-        if isinstance(addr, int):
-            self._sig = ('imm32',)
-            self._clean_args = [struct.pack('i', addr-self._instr_len)]
-        elif isinstance(addr, str):
-            # Generate relative call to label
+        if isinstance(addr, (int, str)):
+            
+            # Generate relative call to label / offset
             self._label = addr
-            self._sig = ('imm32',)
+            self._sig = ('rel32',)
             self._clean_args = [struct.pack('i', 0)]
         else:
             Instruction.read_signature(self)
+         
+    def generate_code(self):
+        prefixes = self.prefixes
+        rex_byte = self.rex_byte
+        opcode = self.opcode
+        operands = self.operands
+        
+        if self._label is not None:
+            # If an operand used a label, we need to account for relative addressing
+            # here.
+            code = (''.join(prefixes) + 
+                        rex_byte + 
+                        opcode)
+            # get the location and size of the relative operand in the instruction
+            addr_offset = None
+            for i, op in enumerate(operands):
+                if self.use_sig[i].startswith('rel'):
+                    addr_offset = len(code)
+                    op_size = len(op)
+                code += op
+            
+            if addr_offset is None:
+                raise RuntimeError("No 'rel' operand in signature; cannot apply label.")
+            op_pack = {1: 'b', 2: 'h', 4: 'i'}[op_size]
+            
+            if isinstance(self._label, str):
+                # Set a Code instance that will insert the correct address once
+                # the label is resolved.
+                code = Code(code)
+                code.replace(addr_offset, "%s - next_instr_addr" % self._label, op_pack)
+                self._code = code
+            elif isinstance(self._label, int):
+                # Adjust offset to account for size of instruction
+                offset = struct.pack(op_pack, self._label - len(code))
+                self._code = code[:addr_offset] + offset + code[addr_offset+op_size:]
+            else:
+                raise TypeError("Invalid label type: %s" % type(self._label))
+        else:
+            Instruction.generate_code(self)
+
 
 
 
@@ -1348,7 +1440,7 @@ class call(RelBranchInstruction):
     # generate absolute call
     modes = {
         #('rel16',): ['e8', 'm', False, True],
-        ('imm32',): ['e8', 'i', True, True],
+        ('rel32',): ['e8', 'i', True, True],
         ('r/m16',): ['ff /2', 'm', False, True],
         ('r/m32',): ['ff /2', 'm', False, True],
         ('r/m64',): ['ff /2', 'm', True, False],
@@ -1358,12 +1450,6 @@ class call(RelBranchInstruction):
         'm': ['ModRM:r/m (r)'],
         'i': ['imm32'],
     }
-
-    def __init__(self, addr):
-        RelBranchInstruction.__init__(self, addr)
-        # Needed for computing relative addresses
-        self._addr_offset = 1
-        self._instr_len = 5
         
 
 #def call(op):
@@ -1972,9 +2058,9 @@ class test(Instruction):
 class jmp(RelBranchInstruction):
     # generate absolute call
     modes = {
-        ('imm8',): ['eb', 'i', True, True],
-        ('imm16',): ['e9', 'i', False, True],
-        ('imm32',): ['e9', 'i', True, True],
+        ('rel8',): ['eb', 'i', True, True],
+        ('rel16',): ['e9', 'i', False, True],
+        ('rel32',): ['e9', 'i', True, True],
         
         ('r/m16',): ['ff /4', 'm', False, True],
         ('r/m32',): ['ff /4', 'm', False, True],
@@ -1986,11 +2072,6 @@ class jmp(RelBranchInstruction):
         'i': ['imm32'],
     }
 
-    def __init__(self, addr):
-        RelBranchInstruction.__init__(self, addr)
-        # Needed for computing relative addresses
-        self._addr_offset = 1
-        self._instr_len = 5
     
 
 #def jmp(addr):
