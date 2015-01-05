@@ -110,7 +110,7 @@ def mod_reg_rm(mod, reg, rm):
         if rm.rex:
             rex_byt |= rex.b
         rm = rm.val
-    return rex_byt, chr(mod_vals[mod] | reg << 3 | rm)
+    return rex_byt, bytes(bytearray([mod_vals[mod] | reg << 3 | rm]))
 
 
 
@@ -144,7 +144,7 @@ def mk_sib(byts, offset, base):
         if base.rex:
             rex_byt |= rex.b
     
-    return rex_byt, chr(byts << 6 | offset.val << 3 | base.val)
+    return rex_byt, bytes(bytearray([byts << 6 | offset.val << 3 | base.val]))
 
 
 #
@@ -259,7 +259,7 @@ class ModRmSib(object):
             self.argbits = (None, b.bits)
             self.bits = b.bits
 
-        assert isinstance(self.code, str)
+        assert isinstance(self.code, bytes)
 
 
 def pack_int(x, int8=False, int16=True, int32=True, int64=True):
@@ -433,7 +433,7 @@ class Pointer(object):
 
         # do some simple displacement parsing
         if self.disp in (None, 0):
-            disp = ''
+            disp = b''
             mod = 'ind'
         else:
             disp = pack_int(self.disp, int8=True, int16=False, int32=True, int64=False)

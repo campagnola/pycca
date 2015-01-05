@@ -1,6 +1,5 @@
 import ctypes, struct
 import numpy as np
-import user
 
 from pycc.asm import *
 
@@ -10,12 +9,14 @@ try:
 except ImportError:
     pass
 
+
+
 print("""
    Example 1: Write a string to stdout
 ------------------------------------------------------
 """)
 
-msg = ctypes.create_string_buffer("Howdy.\n")
+msg = ctypes.create_string_buffer(b"Howdy.\n")
 if ARCH == 32:
     prnt = [  # write to stdout on 32-bit linux
         mov(eax, 4),  # sys_write  (see unistd_32.h)
@@ -77,8 +78,8 @@ fn = mkfunction([
     ret(),
 ])
 fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-msg1 = ctypes.create_string_buffer("original original")
-msg2 = ctypes.create_string_buffer("modified modified")
+msg1 = ctypes.create_string_buffer(b"original original")
+msg2 = ctypes.create_string_buffer(b"modified modified")
 fn(msg1, msg2)
 print('Modified string: "%s"' % msg1.value)
 

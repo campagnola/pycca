@@ -69,9 +69,9 @@ def ret(pop=0):
     address.
     """
     if pop > 0:
-        return '\xc2' + struct.pack('<h', pop)
+        return b'\xc2' + struct.pack('<h', pop)
     else:
-        return '\xc3'
+        return b'\xc3'
 
 
 def leave():
@@ -83,7 +83,7 @@ def leave():
        mov(esp, ebp)
        pop(ebp)
     """
-    return '\xc9'
+    return b'\xc9'
 
 
 class call(RelBranchInstruction):
@@ -546,8 +546,8 @@ def int_(code):
     Common interrupt codes:
     0x80 = OS
     """
-    return '\xcd' + chr(code)
+    return b'\xcd' + bytearray([code])
 
 def syscall():
-    return '\x0f\x05'
+    return b'\x0f\x05'
 

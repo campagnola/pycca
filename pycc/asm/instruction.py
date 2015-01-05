@@ -349,9 +349,6 @@ class Instruction(object):
             reg_in_opcode = False
         
         # assemble initial opcode
-        #opcode = b''
-        #for i in range(0, len(opcode_s), 2):
-            #opcode += chr(int(opcode_s[i:i+2], 16))
         opcode = bytearray.fromhex(opcode_s)
         
         # check for opcode extension
@@ -467,7 +464,7 @@ class Instruction(object):
                 immsize = int(use_sig[i][3:])
                 opsize = 8 * len(arg)
                 assert opsize <= immsize
-                imm = arg + '\0'*((immsize-opsize)//8)
+                imm = arg + b'\0'*((immsize-opsize)//8)
             else:
                 raise RuntimeError("Invalid operand encoding: %s" % enc)
         
@@ -508,9 +505,9 @@ class RelBranchInstruction(Instruction):
         if self._label is not None:
             # If an operand used a label, we need to account for relative addressing
             # here.
-            code = (''.join(prefixes) + 
-                        rex_byte + 
-                        opcode)
+            code = (b''.join(prefixes) + 
+                    rex_byte + 
+                    opcode)
             # get the location and size of the relative operand in the instruction
             addr_offset = None
             for i, op in enumerate(operands):

@@ -56,7 +56,7 @@ class CodePage(object):
                 
         # now compile
         symbols = self.labels.copy()
-        code = ''
+        code = b''
         for cmd in asm:
             if isinstance(cmd, Label):
                 continue
