@@ -29,8 +29,9 @@ into the running process memory.
 Status: beta
 ------------
 
-* Can load executable machine code into memory pages on linux (and probably osx)
+* Can load executable machine code into memory pages
   and call this executable code via ctypes.
+* Tested on linux-64, OSX-64, and windows-32.
 * Simple assembler system in progress; see examples.py.
 
 
