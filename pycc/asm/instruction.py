@@ -229,7 +229,7 @@ class Instruction(object):
                     sig.append('r%d' % arg.bits)
             elif isinstance(arg, Pointer):
                 sig.append('m%d' % arg.bits)
-            elif isinstance(arg, int):
+            elif isinstance(arg, (int, long)):
                 arg = pack_int(arg, int8=True)
                 sig.append('imm%d' % (8*len(arg)))
             elif isinstance(arg, str):

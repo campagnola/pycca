@@ -1,6 +1,6 @@
 # -'- coding: utf-8 -'-
 
-import mmap, ctypes
+import sys, mmap, ctypes
 from .instruction import Instruction, Code, Label
 
 class CodePage(object):
@@ -18,15 +18,20 @@ class CodePage(object):
         #pagesize = os.sysconf("SC_PAGESIZE")
         
         # Create a memory-mapped page with execute privileges
-        PROT_NONE = 0
-        PROT_READ = 1
-        PROT_WRITE = 2
-        PROT_EXEC = 4
-        self.page = mmap.mmap(-1, code_size, prot=PROT_READ|PROT_WRITE|PROT_EXEC)
+        if sys.platform == 'win32':
+            #self.page = mmap.mmap(-1, code_size, access=0x40)
+            self.page = WinPage(code_size)
+            self.page_addr = self.page.addr
+        else:
+            PROT_NONE = 0
+            PROT_READ = 1
+            PROT_WRITE = 2
+            PROT_EXEC = 4
+            self.page = mmap.mmap(-1, code_size, prot=PROT_READ|PROT_WRITE|PROT_EXEC)
 
-        # get the page address
-        buf = (ctypes.c_char * code_size).from_buffer(self.page)
-        self.page_addr = ctypes.addressof(buf)
+            # get the page address
+            buf = (ctypes.c_char * code_size).from_buffer(self.page)
+            self.page_addr = ctypes.addressof(buf)
         
         # Compile machine code and write to the page.
         code = self.compile(asm)
@@ -42,7 +47,10 @@ class CodePage(object):
             addr += self.labels[label]
         
         # Turn this into a callable function
-        f = ctypes.CFUNCTYPE(None)(addr)
+        if sys.platform == 'win32':
+            f = ctypes.WINFUNCTYPE(None)(addr)  # stdcall    
+        else:
+            f = ctypes.CFUNCTYPE(None)(addr)    # cdecl
         f.page = self  # Make sure page stays alive as long as function pointer!
         return f
 
@@ -75,7 +83,37 @@ class CodePage(object):
             code += cmd
         return code
         
-        
+
+class WinPage(object):
+    """Emulate mmap using windows memory block."""
+    def __init__(self, size):
+        kern = ctypes.windll.kernel32
+        valloc = kern.VirtualAlloc
+        valloc.argtypes = (ctypes.c_uint32,) * 4
+        valloc.restype = ctypes.c_uint32
+        MEM_COMMIT = 0x1000
+        MEM_RESERVE = 0x2000
+        PAGE_EXECUTE_READWRITE = 0x40
+        self.addr = valloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE)
+        self.ptr = 0
+        self.size = size
+        self.mem = (ctypes.c_char * size).from_address(self.addr)
+
+    def write(self, data):
+        self.mem[self.ptr:self.ptr+len(data)] = data
+        self.ptr += len(data)
+
+    def __len__(self):
+        return self.size
+
+    def __del__(self):
+        kern = ctypes.windll.kernel32
+        vfree = kern.VirtualFree
+        vfree.argtypes = (ctypes.c_uint32,) * 3
+        MEM_RELEASE = 0x8000
+        vfree(self.addr, self.size, MEM_RELEASE)
+    
+
 def mkfunction(code):
     page = CodePage(code)
     return page.get_function()

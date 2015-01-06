@@ -12,56 +12,65 @@ except ImportError:
 
 
 print("""
-   Example 1: Write a string to stdout
-------------------------------------------------------
-""")
-
-msg = ctypes.create_string_buffer(b"Howdy.\n")
-if ARCH == 32:
-    prnt = [  # write to stdout on 32-bit linux
-        mov(eax, 4),  # sys_write  (see unistd_32.h)
-        mov(ebx, 1),  # stdout
-        mov(ecx, ctypes.addressof(msg)),
-        mov(edx, len(msg)-1),
-        int_(0x80),
-        ret()
-    ]
-else:
-    if sys.platform == 'darwin':
-        syscall_cmd = 0x2000004
-    else:
-        syscall_cmd = 0x1
-    prnt = [  # write to stdout on 64-bit linux
-        mov(rax, syscall_cmd),   # write  (see unistd_64.h)
-        mov(rdi, 1),   # stdout
-        mov(rsi, ctypes.addressof(msg)),
-        mov(rdx, len(msg)-1),
-        syscall(),
-        ret()
-    ]
-
-# print!
-fn = mkfunction(prnt)
-fn.restype = ctypes.c_uint64
-fn()
-
-
-print("""
-   Example 2: Return a value from call
+   Example 1: Return a value from call
 ------------------------------------------------------
 """)
 
 # just leave the value in eax/rax before returning
+reg = rax if ARCH == 64 else eax
+val = struct.pack('I', 0xdeadbeef)
 fn = mkfunction([
-    mov(rax, 0xdeadbeef),
+    mov(reg, val),
     ret()
 ])
 
 # Tell ctypes how to interpret the return value
-fn.restype = ctypes.c_uint64
+fn.restype = ctypes.c_uint64 if ARCH == 64 else ctypes.c_uint32
 
 # Call! Hopefully we get 0xdeadbeef back.
 print("Return: 0x%x" % fn())
+
+
+
+print("""
+   Example 2: Write a string to stdout
+------------------------------------------------------
+""")
+
+# Printing requires OS calls that are different for every platform.
+msg = ctypes.create_string_buffer(b"Howdy.\n")
+if sys.platform == 'win32':
+    print "[ not implemented on win32 ]"
+else:
+    if ARCH == 32:
+        prnt = [  # write to stdout on 32-bit linux
+            mov(eax, 4),  # sys_write  (see unistd_32.h)
+            mov(ebx, 1),  # stdout
+            mov(ecx, ctypes.addressof(msg)),
+            mov(edx, len(msg)-1),
+            int_(0x80),
+            ret()
+        ]
+        fn = mkfunction(prnt)
+        fn.restype = ctypes.c_uint32
+    else:
+        if sys.platform == 'darwin':
+            syscall_cmd = 0x2000004
+        else:
+            syscall_cmd = 0x1
+        prnt = [  # write to stdout on 64-bit linux
+            mov(rax, syscall_cmd),   # write  (see unistd_64.h)
+            mov(rdi, 1),   # stdout
+            mov(rsi, ctypes.addressof(msg)),
+            mov(rdx, len(msg)-1),
+            syscall(),
+            ret()
+        ]
+        fn = mkfunction(prnt)
+        fn.restype = ctypes.c_uint64
+
+    # print!
+    fn()
 
 
 print("""
