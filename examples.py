@@ -40,7 +40,7 @@ print("""
 # Printing requires OS calls that are different for every platform.
 msg = ctypes.create_string_buffer(b"Howdy.\n")
 if sys.platform == 'win32':
-    print "[ not implemented on win32 ]"
+    print("[ not implemented on win32 ]")
 else:
     if ARCH == 32:
         prnt = [  # write to stdout on 32-bit linux

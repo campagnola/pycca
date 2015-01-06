@@ -219,6 +219,8 @@ class Instruction(object):
         sig = []
         clean_args = []
         for arg in self.args:
+            if 'long' not in globals():
+                long = int
             if isinstance(arg, list):
                 arg = interpret(arg)
                 
@@ -232,8 +234,12 @@ class Instruction(object):
             elif isinstance(arg, (int, long)):
                 arg = pack_int(arg, int8=True)
                 sig.append('imm%d' % (8*len(arg)))
-            elif isinstance(arg, str):
-                sig.append('imm%d' % len(arg))
+            elif isinstance(arg, (str, bytes, bytearray)):
+                if len(arg) in (1, 2, 4, 8):
+                    sig.append('imm%d' % len(arg))
+                else:
+                    raise TypeError("Invalid immediate operand length: %d" % 
+                                    len(arg))
             else:
                 raise TypeError("Invalid argument type %s." % type(arg))
             clean_args.append(arg)
