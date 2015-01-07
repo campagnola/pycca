@@ -218,8 +218,8 @@ else:
         exp = mkfunction([
             push(ebp),         # Need to set up a proper frame here.
             mov(ebp, esp),
-            push(dword([ebp+8])),     # Copy input value to new location in stack
-            push(dword([ebp+4])),
+            push(dword([ebp+12])),     # Copy input value to new location in stack
+            push(dword([ebp+8])),
             mov(eax, fp),      # Load address of exp()
             call(eax),         # call exp() - will clean up stack for us
             mov(esp, ebp),
