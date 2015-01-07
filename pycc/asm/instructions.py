@@ -534,7 +534,12 @@ class fild(Instruction):
 
 
 class fist(Instruction):
-    """
+    """The FIST instruction converts the value in the ST(0) register to a 
+    signed integer and stores the result in the destination operand. 
+    
+    Values can be stored in word or doubleword integer format. The destination 
+    operand specifies the address where the first byte of the destination value
+    is to be stored.
     """
     name = 'fist'
     
@@ -556,7 +561,12 @@ class fist(Instruction):
 
 
 class fistp(Instruction):
-    """
+    """The FISTP instruction performs the same operation as the FIST 
+    instruction and then pops the register stack. 
+    
+    To pop the register stack, the processor marks the ST(0) register as empty 
+    and increments the stack pointer (TOP) by 1. The FISTP instruction also 
+    stores values in quadword integer format.
     """
     name = 'fistp'
     
@@ -578,6 +588,87 @@ class fistp(Instruction):
         Instruction.generate_code(self)
 
 
+class fabs(Instruction):
+    """Clears the sign bit of ST(0) to create the absolute value of the 
+    operand.
+    """
+    name = 'fabs'
+
+    modes = collections.OrderedDict([
+        ((), ('d9e1', None, True, True))
+    ])
+
+
+class fadd(Instruction):
+    """Adds the destination and source operands and stores the sum in the 
+    destination location.
+    
+    The destination operand is always an FPU register; the source operand can 
+    be a register or a memory location. Source operands in memory can be in 
+    single-precision or double-precision floating-point format.
+    """
+    name = 'fadd'
+
+    modes = collections.OrderedDict([
+        (('m32fp',), ('d8 /0', 'm', True, True)),
+        (('m64fp',), ('dc /0', 'm', True, True)),
+        
+        (('st(0)', 'st(i)'), ('d8c0+i', '-o', True, True)),
+        (('st(i)', 'st(0)'), ('dcc0+i', 'o-', True, True)),
+        
+        ((), ('dec1', None, True, True)),  # no-operand version is same as faddp
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o-': ['opcode +rd (r)', None],
+        '-o': [None, 'opcode +rd (r)'],
+    }
+    
+class faddp(Instruction):
+    """Adds the destination and source operands and stores the sum in the 
+    destination location.
+    
+    The FADDP instructions perform the additional operation of popping the FPU
+    register stack after storing the result. To pop the register stack, the 
+    processor marks the ST(0) register as empty and increments the stack 
+    pointer (TOP) by 1.
+    """
+    name = 'faddp'
+
+    modes = collections.OrderedDict([
+        (('st(i)', 'st(0)'), ('dec0+i', 'o-', True, True)),
+        
+        ((), ('dec1', None, True, True)),
+    ])
+
+    operand_enc = {
+        'o-': ['opcode +rd (r)', None],
+    }
+    
+
+class fiadd(Instruction):
+    """The FIADD instructions are similar to FADD, but convert an integer 
+    source operand to double extended-precision floating-point format before 
+    performing the addition.
+    """
+    name = 'fiadd'
+
+    modes = collections.OrderedDict([
+        (('m32int',), ('da /0', 'm', True, True)),
+        (('m16int',), ('de /0', 'm', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
+    
+    def generate_code(self):
+        # Don't need 66h prefix for this instruction.
+        # todo: could this have been deduced from the 'm16int' sig?
+        if '\x66' in self.prefixes:
+            self.prefixes.remove('\x66')
+        Instruction.generate_code(self)
 
 
 # Need:

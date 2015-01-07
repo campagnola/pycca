@@ -228,7 +228,7 @@ class Instruction(object):
                 if arg.name.startswith('xmm'):
                     sig.append('xmm')
                 elif arg.name.startswith('st('):
-                    sig.append('ST(i)')
+                    sig.append(arg.name)
                 else:
                     sig.append('r%d' % arg.bits)
             elif isinstance(arg, Pointer):
@@ -334,8 +334,10 @@ class Instruction(object):
                 # handle mode like "xmm1/m64"
                 return self.check_mode(sig, mode[mode.index('/')+1:])
             return False
-        elif mtype == 'ST(i)':
-            return stype == mtype
+        elif mode.lower() == 'st(i)':
+            return sig.startswith('st(')
+        elif mode.lower() == 'st(0)':
+            return mode == sig
         raise Exception("Invalid operand type '%s'" % mtype)
 
     def generate_instruction_parts(self):
@@ -454,6 +456,8 @@ class Instruction(object):
         for i,arg in enumerate(clean_args):
             # look up encoding for this operand
             enc = operand_enc[mode[1]][i]
+            if enc is None:
+                continue
             #print "operand encoding:", i, arg, enc 
             if enc.startswith('opcode +rd'):
                 opcode_reg = arg.val

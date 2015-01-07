@@ -6,16 +6,16 @@ def phex(code):
     if not isinstance(code, list):
         code = [code]
     for instr in code:
-        for c in instr:
-            sys.stdout.write('%02x' % ord(c))
+        for c in bytearray(instr):
+            sys.stdout.write('%02x' % c)
         print('')
 
 def pbin(code):
     if not isinstance(code, list):
         code = [code]
     for instr in code:
-        for c in instr:
-            sys.stdout.write(format(ord(c), '08b'))
+        for c in bytearray(instr):
+            sys.stdout.write(format(c, '08b'))
         print('')
 
 def phexbin(code):

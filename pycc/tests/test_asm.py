@@ -220,8 +220,26 @@ def test_fistp():
     assert fistp(dword([rax])) == as_code('fistp dword ptr [rax]')
     assert fistp(qword([rax+rcx*8])) == as_code('fistp qword ptr [rax+rcx*8]')
 
+def test_fabs():
+    assert fabs() == as_code('fabs')
 
-
+def test_fadd():
+    assert fadd() == as_code('fadd')
+    assert fadd(dword([rax])) == as_code('fadd dword ptr [rax]')
+    assert fadd(qword([rax])) == as_code('fadd qword ptr [rax]')
+    assert fadd(st(0), st(4)) == as_code('fadd st(0), st(4)')
+    assert fadd(st(4), st(0)) == as_code('fadd st(4), st(0)')
+    
+def test_faddp():
+    assert faddp() == as_code('faddp')
+    assert faddp(st(4), st(0)) == as_code('faddp st(4), st(0)')
+    
+def test_fiadd():
+    assert fiadd(dword([rax])) == as_code('fiadd dword ptr [rax]')
+    assert fiadd(word([rax])) == as_code('fiadd word ptr [rax]')
+    
+    
+    
 
 # Testing instructions
 
