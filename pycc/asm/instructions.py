@@ -671,11 +671,13 @@ class fiadd(Instruction):
         Instruction.generate_code(self)
 
 
+
+
 # Need:
-# fild, fadd, fsub, fmul, fdiv, fabs, fist, fsin, fcos, fcom, 
+# fsub, fmul, fdiv, fsin, fcos, fptan, fpatan, fcom, 
 # mul, or, and, andn, not, xor
 
-# avx/sse instructions
+# avx/sse2 instructions
 # movdq2q, movq2dq
 
 

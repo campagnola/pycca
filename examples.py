@@ -1,5 +1,10 @@
-import ctypes, struct
-import numpy as np
+import ctypes, struct, time, math
+try:
+    import numpy as np
+    HAVE_NUMPY = True
+except ImportError:
+    import array
+    HAVE_NUMPY = False
 
 from pycc.asm import *
 
@@ -59,12 +64,20 @@ print("""
 ------------------------------------------------------
 """)
 
-import numpy as np
-data = np.ones(10, dtype=np.uint32)
-I = 5
+# Show how to access data from both numpy array and python arrays
+if HAVE_NUMPY:
+    data = np.ones(10, dtype=np.uint32)
+    addr = data.ctypes.data
+    stride = data.strides[0]
+else:
+    data = array.array('I', [1]*10)
+    addr = data.buffer_info()[0]
+    stride = 4
+
+I = 5   # will access 5th item from asm function
 data[I] = 12345
-offset = I * data.strides[0]
-addr = data.ctypes.data
+offset = I * stride
+    
 if ARCH == 64:
     fn = mkfunction([
         mov(rcx, addr),                    # copy memory address to rcx
@@ -212,11 +225,23 @@ if ARCH == 64:
     fp = struct.unpack('Q', fp[:8])[0]
 
     # Most common 64-bit conventions pass the first float arg in xmm0
-    exp = mkfunction([
-        mov(rax, fp),      # Load address of exp()
-        call(rax),         # call exp()  - input arg is already in xmm0
-        ret(),             # return; now output arg is in xmm0
-    ])
+    if sys.platform == 'win32':
+        exp = mkfunction([
+            push(rbp),
+            mov(rbp, rsp),
+            mov(rax, struct.pack('Q', fp)),      # Load address of exp()
+            sub(rsp, 32),      # MS requires 32-byte shadow on the stack.
+            call(rax),         # call exp()  - input arg is already in xmm0
+            add(rsp, 32),
+            pop(rbp),
+            ret(),             # return; now output arg is in xmm0
+        ])        
+    else:
+        exp = mkfunction([
+            mov(rax, fp),      # Load address of exp()
+            call(rax),         # call exp()  - input arg is already in xmm0
+            ret(),             # return; now output arg is in xmm0
+        ])
 
 else:
     # dereference the function pointer
@@ -247,7 +272,7 @@ exp.argtypes = (ctypes.c_double,)
 
 op = 3.1415
 out = exp(op)
-print("exp(%f) = %f =? %f" % (op, out, np.exp(op)))
+print("exp(%f) = %f =? %f" % (op, out, math.exp(op)))
 
 
 print("""
@@ -293,18 +318,43 @@ else:
 
 find_first.__doc__ = "Return index of first value in an array that is >= 0"
 
-data = -1 + np.zeros(10000000, dtype=np.int32)
-data[-1] = 1
-import time
+# Create numpy array if possible, otherwise python array
+if HAVE_NUMPY:
+    data = -1 + np.zeros(10000000, dtype=np.int32)
+    data[-1] = 1
+    addr = data.ctypes.data
+else:
+    data = array.array('i', [-1]*1000000)
+    data[-1] = 1
+    addr = data.buffer_info()[0]
+
+# Find first element >= 0 using asm
 start = time.clock()
-ind1 = find_first(data.ctypes.data, len(data))
+ind1 = find_first(addr, len(data))
 duration1 = time.clock() - start
+    
+if HAVE_NUMPY:
+    # Find the first element >= 0 using numpy
+    start = time.clock()
+    ind2 = np.argwhere(data >= 0)[0,0]
+    duration2 = time.clock() - start
+    assert ind1 == ind2
+    print("First >= 0: %d" % ind1)
+    print("ASM version took %0.2fms" % (duration1*1000)) 
+    print("NumPy version took %0.2fms" % (duration2*1000)) 
+else:    
+    # Find the first element >= 0 using python 
+    start = time.clock()
+    for i in range(len(data)):
+        if data[i] >= 0:
+            break
+    ind2 = i
+    duration2 = time.clock() - start
+    assert ind1 == ind2
+    print("First >= 0: %d" % ind1)
+    print("ASM version took %0.2fms" % (duration1*1000)) 
+    print("Python version took %0.2fms" % (duration2*1000)) 
+    
 
-start = time.clock()
-ind2 = np.argwhere(data >= 0)[0,0]
-duration2 = time.clock() - start
 
-assert ind1 == ind2
-print("First >= 0: %d" % ind1)
-print("ASM version took %0.2fms" % (duration1*1000)) 
-print("NumPy version took %0.2fms" % (duration2*1000)) 
+
