@@ -503,8 +503,85 @@ class fstp(Instruction):
         'o': ['opcode +rd (r)'],
     }
 
+
+class fild(Instruction):
+    """Converts the signed-integer source operand into double 
+    extended-precision floating-point format and pushes the value onto the FPU
+    register stack. 
+    
+    The source operand can be a word, doubleword, or quadword integer. It is 
+    loaded without rounding errors. The sign of the source operand is 
+    preserved.
+    """
+    name = 'fild'
+    
+    modes = collections.OrderedDict([
+        (('m16int',), ('df /0', 'm', True, True)),
+        (('m32int',), ('db /0', 'm', True, True)),
+        (('m64int',), ('df /5', 'm', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
+    
+    def generate_code(self):
+        # Don't need 66h prefix for this instruction.
+        # todo: could this have been deduced from the 'm16int' sig?
+        if '\x66' in self.prefixes:
+            self.prefixes.remove('\x66')
+        Instruction.generate_code(self)
+
+
+class fist(Instruction):
+    """
+    """
+    name = 'fist'
+    
+    modes = collections.OrderedDict([
+        (('m16int',), ('df /2', 'm', True, True)),
+        (('m32int',), ('db /2', 'm', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
+    
+    def generate_code(self):
+        # Don't need 66h prefix for this instruction.
+        # todo: could this have been deduced from the 'm16int' sig?
+        if '\x66' in self.prefixes:
+            self.prefixes.remove('\x66')
+        Instruction.generate_code(self)
+
+
+class fistp(Instruction):
+    """
+    """
+    name = 'fistp'
+    
+    modes = collections.OrderedDict([
+        (('m16int',), ('df /3', 'm', True, True)),
+        (('m32int',), ('db /3', 'm', True, True)),
+        (('m64int',), ('df /7', 'm', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
+    
+    def generate_code(self):
+        # Don't need 66h prefix for this instruction.
+        # todo: could this have been deduced from the 'm16int' sig?
+        if '\x66' in self.prefixes:
+            self.prefixes.remove('\x66')
+        Instruction.generate_code(self)
+
+
+
+
 # Need:
-# fild, fadd, fsub, fmul, fdiv, fabs, fst, fist, fsin, fcos, fcom, 
+# fild, fadd, fsub, fmul, fdiv, fabs, fist, fsin, fcos, fcom, 
 # mul, or, and, andn, not, xor
 
 # avx/sse instructions

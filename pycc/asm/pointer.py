@@ -331,10 +331,10 @@ class Pointer(object):
         if self.reg2 is not None:
             regs.append(self.reg2.bits)
         if len(regs) == 0:
-            return ''
+            return b''
         if max(regs) == ARCH//2:
             return b'\x67'
-        return ''
+        return b''
         
     @property
     def bits(self):

@@ -206,6 +206,21 @@ def test_fstp():
     assert fstp(qword([rax+rcx*8])) == as_code('fstp qword ptr [rax+rcx*8]')
     assert fstp(st(4)) == as_code('fstp st(4)')
 
+def test_fild():
+    assert fild(word([rax])) == as_code('fild word ptr [rax]')
+    assert fild(dword([rax])) == as_code('fild dword ptr [rax]')
+    assert fild(qword([rax+rcx*8])) == as_code('fild qword ptr [rax+rcx*8]')
+
+def test_fist():
+    assert fist(word([rax])) == as_code('fist word ptr [rax]')
+    assert fist(dword([rax])) == as_code('fist dword ptr [rax]')
+
+def test_fistp():
+    assert fistp(word([rax])) == as_code('fistp word ptr [rax]')
+    assert fistp(dword([rax])) == as_code('fistp dword ptr [rax]')
+    assert fistp(qword([rax+rcx*8])) == as_code('fistp qword ptr [rax+rcx*8]')
+
+
 
 
 # Testing instructions

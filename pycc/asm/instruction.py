@@ -303,7 +303,7 @@ class Instruction(object):
         stype = sig[:-len(sbits)] if len(sbits) > 0 else sig
         mbits = mode.lstrip('irel/xm')
         mtype = mode[:-len(mbits)] if len(mbits) > 0 else mode
-        mbits = mbits.rstrip('fp')
+        mbits = mbits.rstrip('fpint')
         try:
             mbits = int(mbits)
         except ValueError:
@@ -460,14 +460,14 @@ class Instruction(object):
                 if arg.rex:
                     rex_byt = rex_byt | rex.b
                 if arg.bits == 16:
-                    prefixes.append('\x66')
+                    prefixes.append(b'\x66')
             elif enc.startswith('ModRM:r/m'):
                 rm = arg
                 if arg.bits == 16:
-                    prefixes.append('\x66')
+                    prefixes.append(b'\x66')
                 if isinstance(arg, Pointer):
                     addrpfx = arg.prefix
-                    if addrpfx != '':
+                    if addrpfx != b'':
                         prefixes.append(addrpfx)  # adds 0x67 prefix if needed
             elif enc.startswith('ModRM:reg'):
                 reg = arg
