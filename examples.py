@@ -63,13 +63,22 @@ import numpy as np
 data = np.ones(10, dtype=np.uint32)
 I = 5
 data[I] = 12345
+offset = I * data.strides[0]
 addr = data.ctypes.data
-fn = mkfunction([
-    mov(ecx, addr),                        # copy memory address to rcx
-    mov(eax, [ecx+I*data.strides[0]]),     # return value from array[5]
-    mov([ecx+I*data.strides[0]], 54321),   # copy new value to array[5]
-    ret(),
-])
+if ARCH == 64:
+    fn = mkfunction([
+        mov(rcx, addr),                    # copy memory address to rcx
+        mov(eax, dword([rcx+offset])),     # return value from array[5]
+        mov(dword([rcx+offset]), 54321),   # copy new value to array[5]
+        ret(),
+    ])
+else:
+    fn = mkfunction([
+        mov(ecx, addr),             # copy memory address to rcx
+        mov(eax, [ecx+offset]),     # return value from array[5]
+        mov([ecx+offset], 54321),   # copy new value to array[5]
+        ret(),
+    ])
 fn.restype = ctypes.c_uint32
 
 print("Read from array: %d" % fn())
