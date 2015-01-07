@@ -31,8 +31,13 @@ Status: beta
 
 * Can load executable machine code into memory pages
   and call this executable code via ctypes.
-* Tested on linux-64, OSX-64, and windows-32.
 * Simple assembler system in progress; see examples.py.
+* Examples have been tested on:
+
+  |          | Linux  |   OSX   |  Windows |
+  |----------|--------|---------|----------|
+  |IA32      |  X     |         |     X    |
+  |Intel-64  |  X     |    X    |          |
 
 
 Todo
@@ -45,7 +50,11 @@ Todo
 
 * Add SSE, AVX instructions  (and check cpu flags)
 
-* Better 32-bit arch support
+* Better immediate handling:
+
+    * Allow ctypes function pointers as immediate (automatically dereference)
+    * Allow basic ctypes objects
+    * Something like `long(x)`, `uint(x)`
 
 * Intermediate data structures for C-like function code, something like:
 
@@ -53,7 +62,7 @@ Todo
 func('int', 'my_func', [('int', 'arg1'), ('int', 'arg2')], [
     decl('int', 'j'),
     decl('int', 'i'),
-    for('i=0', 'i<10', 'i++', [
+    forloop('i=0', 'i<10', 'i++', [
         assign('j', 'i+1'),
     ]),
     return('j')
