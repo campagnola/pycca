@@ -191,6 +191,10 @@ def test_lea():
     assert lea(eax, [rbx+rcx*2+0x100]) == as_code('lea eax, [rbx+rcx*2+0x100]')
     assert lea(eax, [ebx+ecx*2+0x100]) == as_code('lea eax, [ebx+ecx*2+0x100]')
 
+def test_fld():
+    assert fld(dword([rax])) == as_code('fld dword ptr [rax]')
+    assert fld(qword([rax+rcx*8])) == as_code('fld qword ptr [rax+rcx*8]')
+    assert fld(st(4)) == as_code('fld st(4)')
 
 # Testing instructions
 

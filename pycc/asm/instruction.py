@@ -227,6 +227,8 @@ class Instruction(object):
             if isinstance(arg, Register):
                 if arg.name.startswith('xmm'):
                     sig.append('xmm')
+                elif arg.name.startswith('st('):
+                    sig.append('ST(i)')
                 else:
                     sig.append('r%d' % arg.bits)
             elif isinstance(arg, Pointer):
@@ -301,6 +303,7 @@ class Instruction(object):
         stype = sig[:-len(sbits)] if len(sbits) > 0 else sig
         mbits = mode.lstrip('irel/xm')
         mtype = mode[:-len(mbits)] if len(mbits) > 0 else mode
+        mbits = mbits.rstrip('fp')
         try:
             mbits = int(mbits)
         except ValueError:
@@ -331,7 +334,9 @@ class Instruction(object):
                 # handle mode like "xmm1/m64"
                 return self.check_mode(sig, mode[mode.index('/')+1:])
             return False
-        raise Exception("Invalid operand type %s" % mtype)
+        elif mtype == 'ST(i)':
+            return stype == mtype
+        raise Exception("Invalid operand type '%s'" % mtype)
 
     def generate_instruction_parts(self):
         """Generate bytecode strings for each piece of the instruction.

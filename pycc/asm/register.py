@@ -171,6 +171,15 @@ xmm6 = Register(0b110, 'xmm6', 128)
 xmm7 = Register(0b111, 'xmm7', 128)
 
 
+# FP stack registers
+_st_registers = [Register(i, 'st(%d)' % i, 64) for i in range(8)]
+def st(i):
+    if not isinstance(i, int) or not (0 <= i < 8):
+        raise TypeError("st(i) requires int(0 <= i < 8)")
+    return _st_registers[i]
+    
+
+
 # Lists of registers used as arguments in standard calling conventions
 if ARCH == 32:
     # 32-bit stdcall and cdecl push all arguments onto stack

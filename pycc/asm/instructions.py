@@ -246,7 +246,15 @@ class add(Instruction):
 
 
 class sub(Instruction):
-    """"""    
+    """Subtracts the second operand (source operand) from the first operand 
+    (destination operand) and stores the result in the destination operand.
+    
+    The destination operand can be a register or a memory location; the source 
+    operand can be an immediate, register, or memory location. (However, two 
+    memory operands cannot be used in one instruction.) When an immediate value
+    is used as an operand, it is sign-extended to the length of the destination
+    operand format.
+    """    
     name = 'sub'
     
     modes = collections.OrderedDict([
@@ -275,9 +283,6 @@ class sub(Instruction):
         'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
         'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
     }
-
-
-
 
 
 # NOTE: this is broken because lea uses a different interpretation of the 0x66
@@ -430,8 +435,28 @@ class idiv(Instruction):
 
     
 class fld(Instruction):
-    pass
+    """Pushes the source operand onto the FPU register stack.
+    
+    The source 
+    operand can be in single-precision, double-precision, or double 
+    extended-precision floating-point format. If the source operand is in 
+    single-precision or double-precision floating-point format, it is 
+    automatically converted to the double extended-precision floating-point 
+    format before being pushed on the stack.
+    """
+    name = 'fld'
+    
+    modes = collections.OrderedDict([
+        (('m32fp',), ('d9 /0', 'm', True, True)),
+        (('m64fp',), ('dd /0', 'm', True, True)),
+        (('m80fp',), ('db /5', 'm', True, True)),
+        (('ST(i)',), ('d9c0+i', 'o', True, True)),
+    ])
 
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o': ['opcode +rd (r)'],
+    }
 
 
 
