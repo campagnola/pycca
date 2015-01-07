@@ -7,23 +7,29 @@ Luke Campagnola, 2014
 Motivation
 ----------
 
-Python offers many options for high-performance computing,
-but it is often the case that each of these significantly complicates
-the task of distributing packages, either because they must be compiled
-once for every target platform, or because they depend on third-party
-packages that also must be compiled for every target platform. 
+Python is an excellent platform for numerical computing but relies
+heavily on compiled modules to provide optimized functions. For 
+distributed packages, this either increases the burden on the developer
+to produce compiled binaries for a variety of platforms, or increases
+the burden on the end user to compile the package (or its binary 
+dependencies) for their own system.
 
-The objective of this package is to provide a pure-python approach that
-allows the creation of very simple assembler (and eventually C) functions
-for fast array computations. 
+The objective of pycc is to provide a pure-python approach that
+allows simple assembler (and eventually C) functions to be compiled
+and executed at runtime with no external dependencies.
 
 
 Approach
 --------
 
-The approach taken here is to support a small subset of assembler and C
-constructs necessary to compile a simple function and load it directly
-into the running process memory. 
+Pycc allows assembler code to be compiled and
+executed within Python with no external dependencies. This works by:
+
+1. Allocating a block of memory with execute privileges.
+2. Compiling assembler primitives into machine code and writing to
+   executable memory. 
+3. Using the built-in ctypes package to create a python function that
+   points to the compiled machine code. 
 
 
 Status: beta
@@ -31,13 +37,19 @@ Status: beta
 
 * Can load executable machine code into memory pages
   and call this executable code via ctypes.
-* Simple assembler system in progress; see examples.py.
+* Functional assembly compiler with a relatively limited set of inctructions
+  (see examples.py and pycc/asm/instructions.py). All instructions
+  are tested to produce identical output to the GNU assembly compiler.
 * Examples have been tested on:
 
-  |          | Linux  |   OSX   |  Windows |
-  |:---------|:------:|:-------:|:--------:|
-  |IA32      |  X     |         |     X    |
-  |Intel-64  |  X     |    X    |          |
+  |           |            |  Linux  |   OSX   | Windows |
+  |:----------|:-----------|:-------:|:-------:|:-------:|
+  |  IA-32    | Python 2.7 |    X    |         |    X    |
+  |           | Python 3.4 |         |         |         |
+  | Intel-64  | Python 2.7 |    X    |    X    |         |
+  |           | Python 3.4 |    X    |         |    X    |
+
+* Unit tests pass on 64-bit Linux under python 2.7 and 3.4
 
 
 Todo
