@@ -245,6 +245,41 @@ class add(Instruction):
     }
 
 
+class sub(Instruction):
+    """"""    
+    name = 'sub'
+    
+    modes = collections.OrderedDict([
+        (('r/m8', 'imm8'),   ['80 /5', 'mi', True, True]),
+        (('r/m16', 'imm16'), ['81 /5', 'mi', True, True]),
+        (('r/m32', 'imm32'), ['81 /5', 'mi', True, True]),
+        (('r/m64', 'imm32'), ['REX.W + 81 /5', 'mi', True, False]),
+        
+        (('r/m16', 'imm8'),  ['83 /5', 'mi', True, True]),
+        (('r/m32', 'imm8'),  ['83 /5', 'mi', True, True]),
+        (('r/m64', 'imm8'),  ['REX.W + 85 /0', 'mi', True, False]),        
+        
+        (('r/m8', 'r8'),   ['28 /r', 'mr', True, True]),
+        (('r/m16', 'r16'), ['29 /r', 'mr', True, True]),
+        (('r/m32', 'r32'), ['29 /r', 'mr', True, True]),
+        (('r/m64', 'r64'), ['REX.W + 29 /r', 'mr', True, False]),
+        
+        (('r8', 'r/m8'),   ['2a /r', 'rm', True, True]),
+        (('r16', 'r/m16'),   ['2b /r', 'rm', True, True]),
+        (('r32', 'r/m32'),   ['2b /r', 'rm', True, True]),
+        (('r64', 'r/m64'),   ['REX.W + 2b /r', 'rm', True, False]),
+    ])
+
+    operand_enc = {
+        'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
+        'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
+        'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
+    }
+
+
+
+
+
 # NOTE: this is broken because lea uses a different interpretation of the 0x66
 # and 0x67 prefixes.
 class lea(Instruction):
@@ -394,6 +429,11 @@ class idiv(Instruction):
     }
 
     
+class fld(Instruction):
+    pass
+
+
+
 
 #   Testing instructions
 #----------------------------------------
