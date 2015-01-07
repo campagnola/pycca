@@ -35,7 +35,7 @@ Status: beta
 * Examples have been tested on:
 
   |          | Linux  |   OSX   |  Windows |
-  |----------|--------|---------|----------|
+  |:---------|:------:|:-------:|:--------:|
   |IA32      |  X     |         |     X    |
   |Intel-64  |  X     |    X    |          |
 
