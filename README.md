@@ -45,7 +45,7 @@ Status: beta
   |           |            |  Linux  |   OSX   | Windows |
   |:----------|:-----------|:-------:|:-------:|:-------:|
   |  IA-32    | Python 2.7 |    X    |         |    X    |
-  |           | Python 3.4 |         |         |         |
+  |           | Python 3.4 |    X    |         |         |
   | Intel-64  | Python 2.7 |    X    |    X    |         |
   |           | Python 3.4 |    X    |         |    X    |
 
