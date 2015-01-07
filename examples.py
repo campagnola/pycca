@@ -25,15 +25,79 @@ fn = mkfunction([
 ])
 
 # Tell ctypes how to interpret the return value
-fn.restype = ctypes.c_uint64 if ARCH == 64 else ctypes.c_uint32
+fn.restype = ctypes.c_uint32
 
 # Call! Hopefully we get 0xdeadbeef back.
 print("Return: 0x%x" % fn())
 
 
+print("""
+   Example 2: Jump to label
+----------------------------------------------
+""")
+
+fn = mkfunction([
+    mov(eax, 0x1),
+    jmp('start'),
+    label('end'),
+    ret(),
+    mov(eax, 0x1),
+    mov(eax, 0x1),
+    label('start'),
+    mov(eax, struct.pack('I', 0xdeadbeef)),
+    jmp('end'),
+    mov(eax, 0x1),
+])
+fn.restype = ctypes.c_uint32
+
+# We get 0xdeadbeef back if jumps are followed.
+print("Return: 0x%x" % fn())
+
 
 print("""
-   Example 2: Write a string to stdout
+   Example 3: Access values from an array
+------------------------------------------------------
+""")
+
+import numpy as np
+data = np.ones(10, dtype=np.uint32)
+I = 5
+data[I] = 12345
+addr = data.ctypes.data
+fn = mkfunction([
+    mov(ecx, addr),                        # copy memory address to rcx
+    mov(eax, [ecx+I*data.strides[0]]),     # return value from array[5]
+    mov([ecx+I*data.strides[0]], 54321),   # copy new value to array[5]
+    ret(),
+])
+fn.restype = ctypes.c_uint32
+
+print("Read from array: %d" % fn())
+print("Modified array: %d" % data[5])
+
+
+print("""
+   Example 4: a basic for-loop
+------------------------------------------------------
+""")
+
+fn = mkfunction([
+    mov(eax, 0),
+    label('startfor'),
+    cmp(eax, 10),
+    jge('breakfor'),
+    inc(eax),
+    jmp('startfor'),
+    label('breakfor'),
+    ret()
+])
+
+fn.restype = ctypes.c_uint32
+print("Iterate to 10: %d" % fn())
+
+
+print("""
+   Example 5: Write a string to stdout
 ------------------------------------------------------
 """)
 
@@ -74,23 +138,44 @@ else:
 
 
 print("""
-   Example 3: Pass arguments to function
+   Example 6: Pass arguments to function
 ------------------------------------------------------
 """)
 
-# There are a few different calling conventions we might want to support..
-# This example uses the System V AMD64 convention (used by most *nixes)
-# and the Microsoft x64 convention.
-# See: http://en.wikipedia.org/wiki/X86_calling_conventions
+# This example copies 8 bytes from one char* to another char*.
 
-fn = mkfunction([
-    # copy 8 bytes from arg2 to arg 1
-    # (both args are pointers to char*)
-    mov(rax, [argi[1]]),
-    mov([argi[0]], rax),
-    ret(),
-])
-fn.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+# Each platform uses a different calling convention:
+if sys.platform == 'win32':
+    if ARCH == 32:
+        # stdcall convention
+        fn = mkfunction([
+            mov(ecx, [esp+8]),  # get arg 1 location from stack
+            mov(edx, [esp+4]),  # get arg 0 location from stack
+            mov(eax, [ecx]),    # get 4 bytes from arg 1 string
+            mov([edx], eax),    # copy to arg 0 string
+            mov(eax, [ecx+4]),  # get next 4 bytes
+            mov([edx+4], eax),  # copy to arg 0 string
+            ret(8),             # in stdcall, the callee must clean up the stack
+        ])
+    else:
+        # Microsoft x64 convention
+        fn = mkfunction([
+            mov(rax, [rdx]),  # copy 8 bytes from second arg
+            mov([rcx], rax),  # copy to first arg
+            ret(),            # caller clean-up
+        ])
+else:
+    if ARCH == 32:
+        # cdecl convention
+        raise NotImplementedError()
+    else:
+        # System V AMD64 convention
+        fn = mkfunction([
+            mov(rax, [argi[1]]),  # copy 8 bytes from second arg
+            mov([argi[0]], rax),  # copy to first arg
+            ret(),                # caller clean-up
+        ])
+fn.argtypes = (ctypes.c_char_p, ctypes.c_char_p)
 msg1 = ctypes.create_string_buffer(b"original original")
 msg2 = ctypes.create_string_buffer(b"modified modified")
 fn(msg1, msg2)
@@ -98,131 +183,117 @@ print('Modified string: "%s"' % msg1.value)
 
 
 print("""
-   Example 4: Call an external function
+   Example 7: Call an external function
 ------------------------------------------------------
 """)
 
-# Again we need to worry about calling conventions here.
-# Most common 64-bit conventions pass the first float arg in xmm0
 
+# look up math.exp() from C standard lib
 if sys.platform == 'darwin':
     libm = ctypes.cdll.LoadLibrary('libm.dylib')
+elif sys.platform == 'win32':
+    libm = ctypes.windll.msvcrt
 else:
     libm = ctypes.cdll.LoadLibrary('libm.so.6')
-# look up math.exp() from C standard lib, dereference function pointer
-fp = (ctypes.c_char*8).from_address(ctypes.addressof(libm.exp))
-fp = struct.unpack('Q', fp[:8])[0]
 
-exp = mkfunction([
-    mov(rax, fp),      # Load address of exp()
-    call(rax),         # call exp()  - input arg is already in xmm0
-    ret(),             # return; now output arg is in xmm0
-])
+# Again we need to worry about calling conventions here..
+if ARCH == 64:
+    # dereference the function pointer
+    fp = (ctypes.c_char*8).from_address(ctypes.addressof(libm.exp))
+    fp = struct.unpack('Q', fp[:8])[0]
 
-op = 3.1415
+    # Most common 64-bit conventions pass the first float arg in xmm0
+    exp = mkfunction([
+        mov(rax, fp),      # Load address of exp()
+        call(rax),         # call exp()  - input arg is already in xmm0
+        ret(),             # return; now output arg is in xmm0
+    ])
+
+else:
+    # dereference the function pointer
+    fp = (ctypes.c_char*4).from_address(ctypes.addressof(libm.exp))
+    fp = struct.unpack('I', fp[:4])[0]
+
+    if sys.platform == 'win32':
+        exp = mkfunction([
+            push(ebp),         # Need to set up a proper frame here.
+            mov(ebp, esp),
+            push(dword([ebp+12])),     # Copy input value to new location in stack
+            push(dword([ebp+8])),
+            mov(eax, fp),      # Load address of exp()
+            call(eax),         # call exp() - will clean up stack for us
+            mov(esp, ebp),
+            pop(ebp),
+            ret(8),            # return; callee clean-up
+        ])
+    else:
+        exp = mkfunction([
+            mov(eax, fp),      # Load address of exp()
+            call(eax),         # call exp()  - input arg is already in xmm0
+            ret(),             # return; now output arg is in xmm0
+        ])
+
 exp.restype = ctypes.c_double
 exp.argtypes = (ctypes.c_double,)
+
+op = 3.1415
 out = exp(op)
 print("exp(%f) = %f =? %f" % (op, out, np.exp(op)))
 
 
 print("""
-   Example 5: Jump to label
-----------------------------------------------
-""")
-
-fn = mkfunction([
-    mov(rax, 0x1),
-    jmp('start'),
-    label('end'),
-    ret(),
-    mov(rax, 0x1),
-    mov(rax, 0x1),
-    label('start'),
-    mov(rax, 0xdeadbeef),
-    jmp('end'),
-    mov(rax, 0x1),
-])
-fn.restype = ctypes.c_uint64
-
-# We get 0xdeadbeef back if jumps are followed.
-print("Return: 0x%x" % fn())
-
-
-print("""
-   Example 6: Access values from an array
+   Example 8: a useful function!
 ------------------------------------------------------
 """)
 
-import numpy as np
-data = np.ones(10, dtype=np.uint64)
-I = 5
-data[I] = 12345
-addr = data.ctypes.data
-fn = mkfunction([
-    mov(rcx, addr),                        # copy memory address to rcx
-    mov(rax, [rcx+I*data.strides[0]]),     # return value from array[5]
-    mov([rcx+I*data.strides[0]], 54321),   # copy new value to array[5]
-    ret(),
-])
-fn.restype = ctypes.c_uint64
+if ARCH == 64:
+    find_first = mkfunction([
+        mov(rax, 0),
+        label('start_for'),
+        cmp(dword([argi[0]+rax*4]), 0),
+        jge('break_for'),
+        inc(rax),
+        cmp(rax, argi[1]),
+        jge('break_for'),
+        jmp('start_for'),
+        label('break_for'),
+        ret()
+    ])
 
-print("Read from array: %d" % fn())
-print("Modified array: %d" % data[5])
+    find_first.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
+    find_first.restype = ctypes.c_uint64
+else:
+    if sys.platform == 'win32':
+        find_first = mkfunction([
+            mov(eax, 0),
+            mov(edx, dword([esp+8])),   # array length
+            mov(ecx, dword([esp+4])),   # base array pointer
+            label('start_for'),
+            cmp(dword([ecx+eax*4]), 0),
+            jge('break_for'),
+            inc(eax),
+            cmp(eax, edx),
+            jge('break_for'),
+            jmp('start_for'),
+            label('break_for'),
+            ret(8)
+        ])
 
+    find_first.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
+    find_first.restype = ctypes.c_uint32
 
-print("""
-   Example 7: a basic for-loop
-------------------------------------------------------
-""")
-
-fn = mkfunction([
-    mov(rax, 0),
-    label('startfor'),
-    cmp(rax, 10),
-    jge('breakfor'),
-    inc(rax),
-    jmp('startfor'),
-    label('breakfor'),
-    ret()
-])
-
-fn.restype = ctypes.c_uint64
-print("Iterate to 10: %d" % fn())
-
-
-print("""
-   Example 7: a useful function!
-------------------------------------------------------
-""")
-
-find_first = mkfunction([
-    mov(rax, 0),
-    label('start_for'),
-    cmp([argi[0]+rax*8], 0),
-    jge('break_for'),
-    inc(rax),
-    cmp(rax, argi[1]),
-    jge('break_for'),
-    jmp('start_for'),
-    label('break_for'),
-    ret()
-])
-
-find_first.argtypes = [ctypes.c_uint64, ctypes.c_uint64]
-find_first.restype = ctypes.c_uint64
 find_first.__doc__ = "Return index of first value in an array that is >= 0"
 
-data = -1 + np.zeros(10000000, dtype=np.int64)
+data = -1 + np.zeros(10000000, dtype=np.int32)
 data[-1] = 1
 import time
-start = time.time()
+start = time.clock()
 ind1 = find_first(data.ctypes.data, len(data))
-duration1 = time.time() - start
+duration1 = time.clock() - start
 
-start = time.time()
+start = time.clock()
 ind2 = np.argwhere(data >= 0)[0,0]
-duration2 = time.time() - start
+duration2 = time.clock() - start
 
 assert ind1 == ind2
 print("First >= 0: %d" % ind1)

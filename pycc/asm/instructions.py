@@ -1,6 +1,6 @@
 # -'- coding: utf-8 -'-
 
-import collections
+import collections, struct
 
 from .instruction import Instruction, RelBranchInstruction
 
