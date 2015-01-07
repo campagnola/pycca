@@ -287,13 +287,13 @@ find_first.__doc__ = "Return index of first value in an array that is >= 0"
 data = -1 + np.zeros(10000000, dtype=np.int32)
 data[-1] = 1
 import time
-start = time.time()
+start = time.clock()
 ind1 = find_first(data.ctypes.data, len(data))
-duration1 = time.time() - start
+duration1 = time.clock() - start
 
-start = time.time()
+start = time.clock()
 ind2 = np.argwhere(data >= 0)[0,0]
-duration2 = time.time() - start
+duration2 = time.clock() - start
 
 assert ind1 == ind2
 print("First >= 0: %d" % ind1)
