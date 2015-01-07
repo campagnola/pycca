@@ -459,6 +459,58 @@ class fld(Instruction):
     }
 
 
+class fst(Instruction):
+    """The FST instruction copies the value in the ST(0) register to the 
+    destination operand, which can be a memory location or another register in
+    the FPU register stack. 
+    
+    When storing the value in memory, the value is converted to 
+    single-precision or double-precision floating-point format.
+    """
+    name = 'fst'
+    
+    modes = collections.OrderedDict([
+        (('m32fp',), ('d9 /2', 'm', True, True)),
+        (('m64fp',), ('dd /2', 'm', True, True)),
+        (('ST(i)',), ('ddd0+i', 'o', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o': ['opcode +rd (r)'],
+    }
+
+
+class fstp(Instruction):
+    """The FSTP instruction performs the same operation as the FST instruction
+    and then pops the register stack. 
+    
+    To pop the register stack, the processor marks the ST(0) register as empty 
+    and increments the stack pointer (TOP) by 1. The FSTP instruction can also 
+    store values in memory in double extended-precision floating-point format.
+    """
+    name = 'fstp'
+    
+    modes = collections.OrderedDict([
+        (('m32fp',), ('d9 /3', 'm', True, True)),
+        (('m64fp',), ('dd /3', 'm', True, True)),
+        (('m80fp',), ('db /7', 'm', True, True)),
+        (('ST(i)',), ('ddd8+i', 'o', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o': ['opcode +rd (r)'],
+    }
+
+# Need:
+# fild, fadd, fsub, fmul, fdiv, fabs, fst, fist, fsin, fcos, fcom, 
+# mul, or, and, andn, not, xor
+
+# avx/sse instructions
+# movdq2q, movq2dq
+
+
 
 #   Testing instructions
 #----------------------------------------

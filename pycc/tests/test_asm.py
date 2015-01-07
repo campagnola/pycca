@@ -196,6 +196,18 @@ def test_fld():
     assert fld(qword([rax+rcx*8])) == as_code('fld qword ptr [rax+rcx*8]')
     assert fld(st(4)) == as_code('fld st(4)')
 
+def test_fst():
+    assert fst(dword([rax])) == as_code('fst dword ptr [rax]')
+    assert fst(qword([rax+rcx*8])) == as_code('fst qword ptr [rax+rcx*8]')
+    assert fst(st(4)) == as_code('fst st(4)')
+
+def test_fstp():
+    assert fstp(dword([rax])) == as_code('fstp dword ptr [rax]')
+    assert fstp(qword([rax+rcx*8])) == as_code('fstp qword ptr [rax+rcx*8]')
+    assert fstp(st(4)) == as_code('fstp st(4)')
+
+
+
 # Testing instructions
 
 def test_cmp():
