@@ -111,7 +111,10 @@ def test_mov():
     assert mov(rax, qword([rcx+rbx])) == as_code('mov rax, qword ptr [rcx+rbx]')
     assert mov(rax, qword([8*rbx+rcx])) == as_code('mov rax, qword ptr [8*rbx+rcx]')
     assert mov(rax, qword([0x1000+8*rbx+rcx])) == as_code('mov rax, qword ptr 0x1000[8*rbx+rcx]')
-    
+    assert mov(rax, '\xdd'*8) == as_code('mov rax, qword ptr 0xdddddddddddddddd')
+    with raises(TypeError):
+        mov(qword([0x12345]), '\0'*8).code 
+
 #def test_movsd():
     #assert movsd(xmm1, [rax+rbx*4+0x1000]) == as_code('movsd xmm1, qword ptr [rax+rbx*4+0x1000]')
     #assert movsd([rax+rbx*4+0x1000], xmm1) == as_code('movsd qword ptr [rax+rbx*4+0x1000], xmm1')

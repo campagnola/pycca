@@ -12,6 +12,11 @@ print code.dump_asm()
 print "3 + 1 = %d" % code.add_one(3)
 
 
+c = CCode([Function('double', 'fn', [], [Return(12.3)]) ])
+print c.dump_asm()
+print "12.3 = ", c.fn()
+
+
 # Example: a little closer to C
 #code = CCode([
     #Function('int add_one(int x)', [

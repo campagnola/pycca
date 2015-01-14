@@ -89,8 +89,10 @@ class Return(CodeObject):
             expr = Expression(self.expr)
             code.extend(expr.compile(scope))
         
-            if expr.location is not asm.rax:
+            if expr.type == 'int' and expr.location is not asm.rax:
                 code.append(asm.mov(asm.rax, expr.location))
+            elif expr.type == 'double' and expr.location is not asm.xmm0:
+                raise NotImplementedError("can't move result to xmm0 yet")
             
         # code.append(asm.ret())  # Function handles this part.
         return code

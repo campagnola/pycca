@@ -244,14 +244,13 @@ class Instruction(object):
                 sig.append('imm%d' % (8*len(arg)))
             elif isinstance(arg, (str, bytes, bytearray)):
                 if len(arg) in (1, 2, 4, 8):
-                    sig.append('imm%d' % len(arg))
+                    sig.append('imm%d' % (len(arg)*8))
                 else:
                     raise TypeError("Invalid immediate operand length: %d" % 
                                     len(arg))
             else:
                 raise TypeError("Invalid argument type %s." % type(arg))
             clean_args.append(arg)
-        
         self._sig = tuple(sig)
         self._clean_args = tuple(clean_args)
 

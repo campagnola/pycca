@@ -1,4 +1,4 @@
-import re
+import struct, re
 from .variable import Variable
 from .codeobject import CodeObject, CodeContainer
 from .. import asm
@@ -8,6 +8,7 @@ class Expression(CodeObject):
     def __init__(self, expr):
         CodeObject.__init__(self)
         self.expr = expr
+        self.type = None
         # name introduced into scope to reference the result of this expression
         #self.name = "%s_%x" % (self.__class__.__name__, id(self))
         
@@ -18,10 +19,12 @@ class Expression(CodeObject):
             tokens = self._tokenize(scope)
         #return tokens
         groups = self._group(tokens)
+        self.type = groups.type
         #return groups
         code, location = self._compile_subexpr(groups, scope)
         #scope[self.name] = Variable('int', self.name, reg=location)
         self.location = location
+        
         return code
     
     def _compile_subexpr(self, group, scope):
@@ -42,7 +45,20 @@ class Expression(CodeObject):
                 ops.append(arg)
         
         if group.op is None and len(ops) == 1:
-            location = ops[0]
+            if isinstance(ops[0], (asm.Register, asm.Pointer)):
+                location = ops[0]
+            elif isinstance(ops[0], int):
+                code.append(asm.mov(asm.rax, ops[0]))
+                location = asm.rax
+            elif isinstance(ops[0], float):
+                code.extend([
+                    asm.mov(asm.rax, struct.pack('d', ops[0])),
+                    asm.mov([asm.rsp-8], asm.rax),
+                    asm.movsd(asm.xmm0, [asm.rsp-8])
+                ])
+                location = asm.xmm0
+            else:
+                raise TypeError("Unsupported expression type:", ops[0])
         elif group.op == '+':
             code.append(asm.add(*ops))
             location = ops[0]
@@ -132,6 +148,18 @@ class TokGrp(object):
         self.binary = binary
         self.op = op
         self.args = [arg1, arg2]
+        
+    @property
+    def type(self):
+        # todo: decide when to do automatic type casting
+        if isinstance(self.args[0], (TokGrp, Variable)):
+            return self.args[0].type
+        elif isinstance(self.args[0], int):
+            return 'int'
+        elif isinstance(self.args[0], float):
+            return 'float'
+        else:
+            raise NotImplementedError("Can't determine expression type: %s" % self.args)
         
     @property
     def accepts_arg(self):
