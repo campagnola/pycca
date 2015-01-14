@@ -44,7 +44,7 @@ class CodePage(object):
     def get_function(self, label=None):
         addr = self.page_addr
         if label is not None:
-            addr += self.labels[label]
+            addr = self.labels[label]
         
         # Turn this into a callable function
         if sys.platform == 'win32':
@@ -82,7 +82,10 @@ class CodePage(object):
             
             code += cmd
         return code
-        
+
+    def dump(self):
+        for line in self.asm:
+            print str(line)
 
 class WinPage(object):
     """Emulate mmap using windows memory block."""

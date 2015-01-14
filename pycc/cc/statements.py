@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from .variable import Variable
+from .expression import Expression
 from .codeobject import CodeObject, CodeContainer
 from .. import asm
 
@@ -32,7 +33,7 @@ class Function(CodeContainer):
         # load function args into scope
         for argtype, argname in self.args:
             # todo: only works for single int arg
-            var = Variable(argtype, argname, reg=asm.rax)
+            var = Variable(argtype, argname, reg=asm.rdi)
             scope[argname] = var
         
         code = [asm.label(self.name)]
@@ -58,23 +59,6 @@ class Assignment(CodeObject):
         return code
 
 
-class Expression(CodeObject):
-    def __init__(self, expr):
-        CodeObject.__init__(self)
-        self.expr = expr
-        # name introduced into scope to reference the result of this expression
-        self.name = "%s_%x" % (self.__class__.__name__, id(self))
-        
-    def compile(self, scope):
-        xloc = scope['x'].location
-        code = [
-            asm.add(xloc, 1),
-        ]
-        scope[self.name] = Variable('int', self.name, reg=xloc)
-        self.location = xloc
-        return code
-
-
 class Return(CodeObject):
     def __init__(self, expr):
         CodeObject.__init__(self)
@@ -86,9 +70,9 @@ class Return(CodeObject):
         code.extend(expr.compile(scope))
         
         if expr.location is not asm.rax:
-            code.append(asm.mov(asm.rax, code.location))
+            code.append(asm.mov(asm.rax, expr.location))
             
-        code.append(asm.ret())
+        # code.append(asm.ret())  # Function handles this part.
         return code
         
 

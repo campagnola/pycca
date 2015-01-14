@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import ctypes
 from ..asm import CodePage
 from .codeobject import CodeContainer
 from .statements import Function
@@ -23,6 +24,9 @@ class CCode(CodeContainer):
         for name, obj in scope.items():
             if isinstance(obj, Function):
                 func = self.codepage.get_function(obj.name)
+                func.restype = ctypes.c_int64
+                func.argtypes = (ctypes.c_int32,)
+                func.name = obj.name
                 self.globals[obj.name] = func
                 setattr(self, obj.name, func)
         

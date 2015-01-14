@@ -62,6 +62,9 @@ class Label(object):
     def __len__(self):
         return 0
         
+    def __str__(self):
+        return ':' + self.name
+        
     def compile(self, symbols):
         return ''
 
@@ -96,6 +99,9 @@ class Instruction(object):
 
     def __len__(self):
         return len(self.code)
+
+    def __str__(self):
+        return "%s %s" % (self.name, ', '.join(map(str, self.args)))
 
     @property
     def name(self):

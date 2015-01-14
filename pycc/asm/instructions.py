@@ -61,17 +61,23 @@ class pop(Instruction):
     }
     
 
-def ret(pop=0):
+class ret(Instruction):
     """ RET
     
     Return; pop a value from the stack and branch to that address.
     Optionally, extra values may be popped from the stack after the return 
     address.
     """
-    if pop > 0:
-        return b'\xc2' + struct.pack('<h', pop)
-    else:
-        return b'\xc3'
+    name = 'ret'
+    
+    modes = collections.OrderedDict([
+        (('imm16',),   ['c2 iw', 'i', True, True]),
+        ((), ['c3', None, True, True]),
+    ])
+        
+    operand_enc = {
+        'i': ['imm16'],
+    }
 
 
 def leave():

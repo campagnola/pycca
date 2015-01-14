@@ -26,3 +26,6 @@ class Variable(object):
         
         else:
             raise TypeError("Currently only reg supported for set_location.")
+
+    def __repr__(self):
+        return self.name

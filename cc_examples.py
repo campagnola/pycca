@@ -9,7 +9,8 @@ code = CCode([
     ])
 ])
 code.compile()
-
+for line in code.asm:
+    print line
 print "3 + 1 = %d" % code.add_one(3)
 
 
