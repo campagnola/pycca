@@ -12,7 +12,10 @@ class Expression(CodeObject):
         #self.name = "%s_%x" % (self.__class__.__name__, id(self))
         
     def compile(self, scope):
-        tokens = self._tokenize(scope)
+        if isinstance(self.expr, (int, float)):
+            tokens = [self.expr]
+        else:
+            tokens = self._tokenize(scope)
         #return tokens
         groups = self._group(tokens)
         #return groups

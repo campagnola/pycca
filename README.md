@@ -71,13 +71,13 @@ Todo
 * Intermediate data structures for C-like function code, something like:
 
 ```
-func('int', 'my_func', [('int', 'arg1'), ('int', 'arg2')], [
-    decl('int', 'j'),
-    decl('int', 'i'),
-    forloop('i=0', 'i<10', 'i++', [
-        assign('j', 'i+1'),
+Function('int', 'my_func', [('int', 'arg1'), ('int', 'arg2')], [
+    Decl('int', 'j'),
+    Decl('int', 'i'),
+    For('i=0', 'i<10', 'i++', [
+        Assign(j='i+1'),
     ]),
-    return('j')
+    Return('j')
 ])
 ```
 
@@ -85,4 +85,4 @@ func('int', 'my_func', [('int', 'arg1'), ('int', 'arg2')], [
 
 * Simple C compiler
 
-
+* Support for GIL handling

@@ -11,6 +11,7 @@ class CCode(CodeContainer):
         self.globals = None
         self.asm = None
         self.codepage = None
+        self.compile()
         
     def compile(self):
         self.asm = []
@@ -24,10 +25,11 @@ class CCode(CodeContainer):
         for name, obj in scope.items():
             if isinstance(obj, Function):
                 func = self.codepage.get_function(obj.name)
-                func.restype = ctypes.c_int64
-                func.argtypes = (ctypes.c_int32,)
+                func.restype = obj.c_restype
+                func.argtypes = obj.c_argtypes
                 func.name = obj.name
                 self.globals[obj.name] = func
                 setattr(self, obj.name, func)
         
-    
+    def dump_asm(self):
+        return self.codepage.dump()

@@ -11,4 +11,4 @@ http://en.wikipedia.org/wiki/X86_calling_conventions
 
 """
 from .ccode import CCode
-from .statements import Function, Assignment, Return
+from .statements import Function, Assign, Return

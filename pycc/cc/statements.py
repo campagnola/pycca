@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import ctypes
+
 from .variable import Variable
 from .expression import Expression
 from .codeobject import CodeObject, CodeContainer
@@ -19,11 +21,28 @@ def func(rtype, name, *args):
     return Function(rtype, name, *args)
 
 class Function(CodeContainer):
+    ctype_map = {
+        'void': None,
+        'int': ctypes.c_int,
+        'double': ctypes.c_double,
+    }
+    
     def __init__(self, rtype, name, args, code):
         CodeContainer.__init__(self, code)
         self.rtype = rtype
         self.name = name
         self.args = args
+
+    @property
+    def c_restype(self):
+        return self.ctype_map[self.rtype]
+    
+    @property
+    def c_argtypes(self):
+        types = []
+        for argtype, argname in self.args:
+            types.append(self.ctype_map[argtype])
+        return types
 
     def compile(self, scope):
         scope[self.name] = self
@@ -45,7 +64,7 @@ class Function(CodeContainer):
         return code
 
 
-class Assignment(CodeObject):
+class Assign(CodeObject):
     def __init__(self, **kwds):
         CodeObject.__init__(self)
         self.assignments = kwds
@@ -60,17 +79,18 @@ class Assignment(CodeObject):
 
 
 class Return(CodeObject):
-    def __init__(self, expr):
+    def __init__(self, expr=None):
         CodeObject.__init__(self)
         self.expr = expr
         
     def compile(self, scope):
         code = []
-        expr = Expression(self.expr)
-        code.extend(expr.compile(scope))
+        if self.expr is not None:
+            expr = Expression(self.expr)
+            code.extend(expr.compile(scope))
         
-        if expr.location is not asm.rax:
-            code.append(asm.mov(asm.rax, expr.location))
+            if expr.location is not asm.rax:
+                code.append(asm.mov(asm.rax, expr.location))
             
         # code.append(asm.ret())  # Function handles this part.
         return code

@@ -84,8 +84,17 @@ class CodePage(object):
         return code
 
     def dump(self):
-        for line in self.asm:
-            print str(line)
+        code = ''
+        ptr = 0
+        for instr in self.asm:
+            hex = ''
+            if isinstance(instr, Instruction):
+                for c in bytearray(instr.code):
+                    hex += '%02x' % c
+            code += '0x%04x: %s%s%s\n' % (ptr, hex, ' '*(40-len(hex)), instr)
+            ptr += len(hex)/2
+        return code
+
 
 class WinPage(object):
     """Emulate mmap using windows memory block."""
