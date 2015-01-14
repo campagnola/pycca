@@ -1,3 +1,5 @@
-from . import asm
-
+# -*- coding: utf-8 -*-
 __version__ = '0.1.0'
+
+from . import asm, cc
+
