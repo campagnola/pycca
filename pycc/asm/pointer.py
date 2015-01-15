@@ -396,13 +396,13 @@ class Pointer(object):
         parts = []
         if self.disp is not None:
             parts.append('0x%x' % self.disp)
-        if self.reg2 is not None:
-            parts.append(self.reg2.name)
         if self.reg1 is not None:
             if self.scale is not None:
                 parts.append("%d*%s" % (self.scale, self.reg1.name))
             else:
                 parts.append(self.reg1.name)
+        if self.reg2 is not None:
+            parts.append(self.reg2.name)
         ptr = '[' + ' + '.join(parts) + ']'
         if self._bits is None:
             return ptr
@@ -480,6 +480,7 @@ class Pointer(object):
                     return mrex, modrm + disp
             else:
                 # two registers; swap places if necessary.
+                regs.reverse()  # just to match GNU ordering
                 if regs[0] in (esp, rsp): # seems to be unnecessary for r12d
                     if regs[1] in (esp, rsp):
                         raise TypeError("Cannot encode registers in SIB: %s+%s" 

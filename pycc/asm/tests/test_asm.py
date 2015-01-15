@@ -38,7 +38,8 @@ def itest(instr):
         if code1 == code2:
             return
         else:
-            sys.stdout.write("\npy:  ")
+            print("\n" + str(instr))
+            sys.stdout.write("py:  ")
             phexbin(code1)
             sys.stdout.write("gnu: ")
             phexbin(code2)
@@ -70,8 +71,8 @@ def test_effective_address():
     # test that register/scale/offset arithmetic works
     assert str(Pointer([rax])) == '[rax]'
     assert str(rax + rbx) == '[rax + rbx]'
-    assert str(8*rax + rbx) == '[rbx + 8*rax]'
-    assert str(rbx + 4*rcx + 0x1000) == '[0x1000 + rbx + 4*rcx]'
+    assert str(8*rax + rbx) == '[8*rax + rbx]'
+    assert str(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
     assert str(Pointer([0x1000])) == '[0x1000]'
     assert str(0x1000 + rcx) == '[0x1000 + rcx]'
     assert str(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
@@ -105,13 +106,13 @@ def test_generate_asm():
     assert str(mov(rax, [rbx])) == 'mov rax, [rbx]'
     assert str(mov(rax, [rbx+rax])) == 'mov rax, [rbx + rax]'
     assert str(mov(rax, [rax+rbx])) == 'mov rax, [rax + rbx]'
-    assert str(mov(rax, [rax+rbx*4])) == 'mov rax, [rax + 4*rbx]'
-    assert str(mov(rax, [rax*4+rbx])) == 'mov rax, [rbx + 4*rax]'
+    assert str(mov(rax, [rax+rbx*4])) == 'mov rax, [4*rbx + rax]'
+    assert str(mov(rax, [rax*4+rbx])) == 'mov rax, [4*rax + rbx]'
     assert str(mov(rax, [0x100+rbx])) == 'mov rax, [0x100 + rbx]'
     assert str(mov(rax, [0x100+rbx+rax])) == 'mov rax, [0x100 + rbx + rax]'
     assert str(mov(rax, [0x100+rax+rbx])) == 'mov rax, [0x100 + rax + rbx]'
-    assert str(mov(rax, [0x100+rax+rbx*4])) == 'mov rax, [0x100 + rax + rbx*4]'
-    assert str(mov(rax, [0x100+rax*4+rbx])) == 'mov rax, [0x100 + rbx + rax*4]'
+    assert str(mov(rax, [0x100+rax+rbx*4])) == 'mov rax, [0x100 + 4*rbx + rax]'
+    assert str(mov(rax, [0x100+rax*4+rbx])) == 'mov rax, [0x100 + 4*rax + rbx]'
     assert str(mov(rax, [0x100])) == 'mov rax, [0x100]'
     # check byte, word, dword, qword, imm
     

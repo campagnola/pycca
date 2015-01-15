@@ -41,7 +41,7 @@ class Register(object):
         
     def __add__(self, x):
         if isinstance(x, Register):
-            return Pointer(reg1=x, reg2=self)
+            return Pointer(reg1=self, reg2=x)
         elif isinstance(x, Pointer):
             return x.__add__(self)
         elif isinstance(x, int):
