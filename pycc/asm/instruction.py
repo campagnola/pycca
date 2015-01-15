@@ -105,7 +105,12 @@ class Instruction(object):
         return len(self.code)
 
     def __str__(self):
-        return "%s %s" % (self.name, ', '.join(map(str, self.args)))
+        args = []
+        for arg in self.args:
+            if isinstance(arg, list):
+                arg = Pointer(arg)
+            args.append(str(arg))
+        return "%s %s" % (self.name, ', '.join(args))
 
     @property
     def name(self):

@@ -396,13 +396,13 @@ class Pointer(object):
         parts = []
         if self.disp is not None:
             parts.append('0x%x' % self.disp)
+        if self.reg2 is not None:
+            parts.append(self.reg2.name)
         if self.reg1 is not None:
             if self.scale is not None:
                 parts.append("%d*%s" % (self.scale, self.reg1.name))
             else:
                 parts.append(self.reg1.name)
-        if self.reg2 is not None:
-            parts.append(self.reg2.name)
         ptr = '[' + ' + '.join(parts) + ']'
         if self._bits is None:
             return ptr
@@ -430,6 +430,13 @@ class Pointer(object):
         for r in (self.reg1, self.reg2):
             if r is not None and r.bits < ARCH//2:
                 raise TypeError("Invalid register for pointer: %s" % r.name)
+            
+        # sanity checks
+        # (note these should not go in init to facilitate testing)
+        if self.reg1 is not None and self.reg2 is not None:
+            if self.reg1.bits != self.reg2.bits:
+                raise TypeError('Cannot compile pointer from registers of '
+                                'different size: %s, %s' % (self.reg1, self.reg2))
 
         # do some simple displacement parsing
         if self.disp in (None, 0):
@@ -448,9 +455,15 @@ class Pointer(object):
                 if self.disp in (None, 0):
                     raise TypeError("Cannot encode empty pointer.")
                 disp = struct.pack('i', self.disp)
-                mrex, modrm = mod_reg_rm('ind', reg, 'sib')
-                srex, sib = mk_sib(0, None, 'disp')
-                return mrex|srex, modrm + sib + disp
+                # For some reason, GNU prefers to encode [disp] pointers
+                # two different ways on 32/64 bit arches.
+                if ARCH == 32:  
+                    mrex, modrm = mod_reg_rm('ind', reg, 'disp')
+                    return mrex, modrm + disp
+                else:
+                    mrex, modrm = mod_reg_rm('ind', reg, 'sib')
+                    srex, sib = mk_sib(0, None, 'disp')
+                    return mrex|srex, modrm + sib + disp
             elif len(regs) == 1:
                 # one register; put this wherever is most convenient.
                 if regs[0].val == 4:

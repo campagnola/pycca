@@ -15,28 +15,42 @@ for name,obj in list(globals().items()):
             regs.setdefault('gp', []).append(obj)
 
 
-def itest(instr, *args):
+def itest(instr):
     """Generic instruction test: ensure that output of our function matches
     output of GNU assembler.
     
     *args* must be instruction arguments + assembler code to compare 
     as the last argument.
     """
-    asm = args[-1]
-    args = args[:-1]
-    
     try:
-        code1 = instr(*args).code
+        code1 = instr.code
+        err1 = None
     except TypeError as exc:
-        # Only pass if assembler also generates error
-        try:
-            code2 = as_code(asm)
-            raise exc
-        except Exception:
+        err1 = exc
+        
+    try:
+        code2 = as_code(str(instr), quiet=True)
+        err2 = None
+    except Exception as exc:
+        err2 = exc
+        
+    if err1 is None and err2 is None:
+        if code1 == code2:
             return
+        else:
+            sys.stdout.write("\npy:  ")
+            phexbin(code1)
+            sys.stdout.write("gnu: ")
+            phexbin(code2)
+            raise Exception("code mismatch.")
+    elif err1 is not None and err2 is not None:
+        return
+    elif err1 is None:
+        print("\n" + err2.output)
+        raise err2
+    elif err2 is None:
+        raise err1
 
-    code2 = as_code(asm)
-    assert code1 == code2
 
 def addresses(base):
     """Generator yielding various effective address arrangements.
@@ -55,24 +69,24 @@ def addresses(base):
 def test_effective_address():
     # test that register/scale/offset arithmetic works
     assert str(Pointer([rax])) == '[rax]'
-    assert str(rax + rbx) == '[rbx + rax]'
-    assert str(8*rax + rbx) == '[8*rax + rbx]'
-    assert str(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
+    assert str(rax + rbx) == '[rax + rbx]'
+    assert str(8*rax + rbx) == '[rbx + 8*rax]'
+    assert str(rbx + 4*rcx + 0x1000) == '[0x1000 + rbx + 4*rcx]'
     assert str(Pointer([0x1000])) == '[0x1000]'
     assert str(0x1000 + rcx) == '[0x1000 + rcx]'
     assert str(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
 
     # test that we can generate a variety of mod_r/m+sib+disp strings
-    assert (Pointer([rax])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax]')[2:]
-    assert (rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax + rbx]')[2:]
-    assert (8*rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax*8 + rbx]')[2:]
-    assert (rbx + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbx + 4*rcx + 0x1000]')[2:]
-    assert (Pointer([0x1000])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000]')[2:]
-    assert (0x1000 + rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + rcx]')[2:]
-    assert (0x1000 + 2*rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + 2*rcx]')[2:]
+    itest(mov(edx, dword([eax])))
+    itest(mov(edx, dword([ebx + eax])))
+    itest(mov(edx, dword([eax*8 + ebx])))
+    itest(mov(edx, dword([ebx + 4*ecx + 0x1000])))
+    itest(mov(edx, dword([0x1000])))
+    itest(mov(edx, dword([0x1000 + ecx])))
+    itest(mov(edx, dword([0x1000 + 2*ecx])))
 
     # test using rbp as the SIB base
-    assert (rbp + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbp + 4*rcx + 0x1000]')[2:]
+    itest(mov(edx, dword([ebp + 4*rcx + 0x1000])))
     
     # test using esp as the SIB offset
     with raises(TypeError):
@@ -82,6 +96,24 @@ def test_effective_address():
     
     # test rex prefix:
     assert Pointer([r8]).modrm_sib(rax)[0] == rex.b
+
+
+def test_generate_asm():
+    # Need to be sure that str(instr) generates accurate strings or else 
+    # we may get false positive tests.
+    assert str(mov(rax, rbx)) == 'mov rax, rbx'
+    assert str(mov(rax, [rbx])) == 'mov rax, [rbx]'
+    assert str(mov(rax, [rbx+rax])) == 'mov rax, [rbx + rax]'
+    assert str(mov(rax, [rax+rbx])) == 'mov rax, [rax + rbx]'
+    assert str(mov(rax, [rax+rbx*4])) == 'mov rax, [rax + 4*rbx]'
+    assert str(mov(rax, [rax*4+rbx])) == 'mov rax, [rbx + 4*rax]'
+    assert str(mov(rax, [0x100+rbx])) == 'mov rax, [0x100 + rbx]'
+    assert str(mov(rax, [0x100+rbx+rax])) == 'mov rax, [0x100 + rbx + rax]'
+    assert str(mov(rax, [0x100+rax+rbx])) == 'mov rax, [0x100 + rax + rbx]'
+    assert str(mov(rax, [0x100+rax+rbx*4])) == 'mov rax, [0x100 + rax + rbx*4]'
+    assert str(mov(rax, [0x100+rax*4+rbx])) == 'mov rax, [0x100 + rbx + rax*4]'
+    assert str(mov(rax, [0x100])) == 'mov rax, [0x100]'
+    # check byte, word, dword, qword, imm
     
 
 def test_pack_int():
@@ -98,21 +130,20 @@ def test_pack_int():
 # Move instructions
 
 def test_mov():
-    assert mov(eax, 0x1234567) == as_code('mov eax,0x1234567')
-    assert mov(eax, ebx) == as_code('mov eax,ebx')
-    assert mov(rax, 0x1234567891) == as_code('mov rax,0x1234567891')
-    assert mov(rax, rbx) == as_code('mov rax,rbx')
-    assert mov(qword([0x12345]), rax) == as_code('mov qword ptr [0x12345], rax')
-    assert mov(dword([0x12345]), eax) == as_code('mov dword ptr [0x12345], eax')
-    assert mov(rax, qword([0x12345])) == as_code('mov rax, qword ptr [0x12345]')
-    assert mov(eax, dword([0x12345])) == as_code('mov eax, dword ptr [0x12345]')
-    assert mov(rax, qword([rbx])) == as_code('mov rax, qword ptr [rbx]')
-    assert mov(rax, qword([rcx+rbx])) == as_code('mov rax, qword ptr [rcx+rbx]')
-    assert mov(rax, qword([8*rbx+rcx])) == as_code('mov rax, qword ptr [8*rbx+rcx]')
-    assert mov(rax, qword([0x1000+8*rbx+rcx])) == as_code('mov rax, qword ptr 0x1000[8*rbx+rcx]')
-    assert mov(rax, '\xdd'*8) == as_code('mov rax, qword ptr 0xdddddddddddddddd')
-    with raises(TypeError):
-        mov(qword([0x12345]), '\0'*8).code 
+    itest(mov(eax, 0x1234567))
+    itest(mov(eax, ebx))
+    itest(mov(rax, 0x1234567891))
+    itest(mov(rax, rbx))
+    itest(mov(qword([0x12345]), rax))
+    itest(mov(dword([0x12345]), eax))
+    itest(mov(rax, qword([0x12345])))
+    itest(mov(eax, dword([0x12345])))
+    itest(mov(rax, qword([rbx])))
+    itest(mov(rax, qword([rcx+rbx])))
+    itest(mov(rax, qword([8*rbx+rcx])))
+    itest(mov(rax, qword([0x1000+8*rbx+rcx])))
+    itest(mov(rax, '\xdd'*8))
+    itest(mov(qword([0x12345]), '\0'*8))
 
 #def test_movsd():
     #assert movsd(xmm1, [rax+rbx*4+0x1000]) == as_code('movsd xmm1, qword ptr [rax+rbx*4+0x1000]')

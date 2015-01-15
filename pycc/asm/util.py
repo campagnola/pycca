@@ -73,7 +73,7 @@ def compare(instr_class, *args):
             print("[codes match]")
 
 
-def run_as(asm):
+def run_as(asm, quiet=False):
     """ Use gnu as and objdump to show ideal compilation of *asm*.
     
     This prepends the given code with ".intel_syntax noprefix\n" 
@@ -88,25 +88,31 @@ def run_as(asm):
     #print asm
     fname = tempfile.mktemp('.s')
     open(fname, 'w').write(asm)
-    cmd = 'as {file} -o {file}.o && objdump -d {file}.o; rm -f {file} {file}.o'.format(file=fname)
+    if quiet:
+        redir = '2>&1'
+    else:
+        redir = ''
+    cmd = 'as {file} -o {file}.o {redirect} && objdump -d {file}.o; rm -f {file} {file}.o'.format(file=fname, redirect=redir)
     #print cmd
     out = subprocess.check_output(cmd, shell=True)
     out = out.decode('ascii').split('\n')
     for i,line in enumerate(out):
         if "Disassembly of section .text:" in line:
             return out[i+3:]
-    print("--- code: ---")
-    print(asm)
-    print("-------------")
+    if not quiet:
+        print("--- code: ---")
+        print(asm)
+        print("-------------")
     exc = Exception("Error running 'as' or 'objdump' (see above).")
     exc.asm = asm
+    exc.output = '\n'.join(out)
     raise exc
 
-def as_code(asm):
+def as_code(asm, quiet=False):
     """Return machine code string for *asm* using gnu as and objdump.
     """
     code = b''
-    for line in run_as(asm):
+    for line in run_as(asm, quiet=quiet):
         if line.strip() == '':
             continue
         m = re.match(r'\s*[a-f0-9]+:\s+(([a-f0-9][a-f0-9]\s+)+)', line)
