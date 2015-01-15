@@ -2,8 +2,7 @@
 
 from pytest import raises
 from pycc.asm import *
-from pycc.asm.instruction import interpret
-from pycc.asm.pointer import rex, pack_int
+from pycc.asm.pointer import Pointer, rex, pack_int
 
     
 regs = {}
@@ -55,20 +54,20 @@ def addresses(base):
 
 def test_effective_address():
     # test that register/scale/offset arithmetic works
-    assert str(interpret([rax])) == '[rax]'
+    assert str(Pointer([rax])) == '[rax]'
     assert str(rax + rbx) == '[rbx + rax]'
     assert str(8*rax + rbx) == '[8*rax + rbx]'
     assert str(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
-    assert str(interpret([0x1000])) == '[0x1000]'
+    assert str(Pointer([0x1000])) == '[0x1000]'
     assert str(0x1000 + rcx) == '[0x1000 + rcx]'
     assert str(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
 
     # test that we can generate a variety of mod_r/m+sib+disp strings
-    assert (interpret([rax])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax]')[2:]
+    assert (Pointer([rax])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax]')[2:]
     assert (rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax + rbx]')[2:]
     assert (8*rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax*8 + rbx]')[2:]
     assert (rbx + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbx + 4*rcx + 0x1000]')[2:]
-    assert (interpret([0x1000])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000]')[2:]
+    assert (Pointer([0x1000])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000]')[2:]
     assert (0x1000 + rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + rcx]')[2:]
     assert (0x1000 + 2*rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + 2*rcx]')[2:]
 
@@ -82,7 +81,7 @@ def test_effective_address():
         (4*esp + 0x1000).modrm_sib(rdx)
     
     # test rex prefix:
-    assert interpret([r8]).modrm_sib(rax)[0] == rex.b
+    assert Pointer([r8]).modrm_sib(rax)[0] == rex.b
     
 
 def test_pack_int():

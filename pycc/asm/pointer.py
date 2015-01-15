@@ -181,30 +181,6 @@ def mk_sib(byts, offset, base):
 #
 
 
-def interpret(arg):
-    """General function for interpreting instruction arguments.
-    
-    This converts list arguments to Pointer, allowing syntax like::
-    
-        mov(rax, [0x1000])  # 0x1000 is a memory address
-        mov(rax, 0x1000)    # 0x1000 is an immediate value
-    """
-    if isinstance(arg, list):
-        assert len(arg) == 1
-        arg = arg[0]
-        if isinstance(arg, Register):
-            return Pointer(reg1=arg)
-        elif isinstance(arg, int):
-            return Pointer(disp=arg)
-        elif isinstance(arg, Pointer):
-            return arg
-        else:
-            raise TypeError("List arguments may only contain a single int, "
-                            "Register, or Pointer.")
-    else:
-        return arg
-
-
 class ModRmSib(object):
     """Container for mod_reg_rm + sib + displacement string and related
     information.
@@ -221,8 +197,8 @@ class ModRmSib(object):
     The .rex property gives the REX byte required to encode the instruction
     """
     def __init__(self, a, b):
-        self.a = a = interpret(a)
-        self.b = b = interpret(b)
+        self.a = a
+        self.b = b
         
         self.argtypes = ''
         for op in (a, b):
@@ -293,14 +269,38 @@ class Pointer(object):
     
         ebp-0x10   # 16 bytes lower than base pointer
         0x1000 + 8*eax + ebx
+        
+    May also be created from a single list argument, allowing syntax like::
+        
+        mov(rax, [0x1000])
+        mov(rax, [0x1000 + rax])
+        mov(rax, [0x1000 + rbx*4])
     """
     def __init__(self, reg1=None, scale=None, reg2=None, disp=None):
+        if isinstance(reg1, list) and scale is None and reg2 is None and disp is None:
+            if len(reg1) != 1:
+                raise TypeError("Cannot create Pointer from list with length != 1")
+            arg = reg1[0]
+            if isinstance(arg, Register):
+                reg1 = arg
+            elif isinstance(arg, int):
+                reg1 = None
+                disp = arg
+            elif isinstance(arg, Pointer):
+                reg1 = arg.reg1
+                scale = arg.scale
+                reg2 = arg.reg2
+                disp = arg.disp
+            else:
+                raise TypeError("List arguments may only contain a single int, "
+                                "Register, or Pointer.")
+        
         self.reg1 = reg1
         self.scale = scale
         self.reg2 = reg2
         self.disp = disp
         self._bits = None
-    
+
     def copy(self):
         return Pointer(self.reg1, self.scale, self.reg2, self.disp)
 
@@ -515,7 +515,7 @@ def qword(ptr):
     if not isinstance(ptr, Pointer):
         if not isinstance(ptr, list):
             ptr = [ptr]
-        ptr = interpret(ptr)
+        ptr = Pointer(ptr)
     ptr.bits = 64
     return ptr
 
@@ -523,7 +523,7 @@ def dword(ptr):
     if not isinstance(ptr, Pointer):
         if not isinstance(ptr, list):
             ptr = [ptr]
-        ptr = interpret(ptr)
+        ptr = Pointer(ptr)
     ptr.bits = 32
     return ptr
         
@@ -531,7 +531,7 @@ def word(ptr):
     if not isinstance(ptr, Pointer):
         if not isinstance(ptr, list):
             ptr = [ptr]
-        ptr = interpret(ptr)
+        ptr = Pointer(ptr)
     ptr.bits = 16
     return ptr
         
@@ -539,6 +539,6 @@ def byte(ptr):
     if not isinstance(ptr, Pointer):
         if not isinstance(ptr, list):
             ptr = [ptr]
-        ptr = interpret(ptr)
+        ptr = Pointer(ptr)
     ptr.bits = 8
     return ptr

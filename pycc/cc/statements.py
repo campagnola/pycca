@@ -50,9 +50,26 @@ class Function(CodeContainer):
         scope = scope.copy()
         
         # load function args into scope
+        argi = [asm.rdi, asm.rsi, asm.rdx, asm.rcx, asm.r8, asm.r9]
+        argf = [asm.xmm0, asm.xmm1, asm.xmm2, asm.xmm3, asm.xmm4, asm.xmm5, asm.xmm6, asm.xmm7]
+        stackp = 0
         for argtype, argname in self.args:
             # todo: only works for single int arg
-            var = Variable(argtype, argname, reg=asm.rdi)
+            if argtype == 'int':
+                if len(argi) > 0:
+                    loc = argi.pop(0)
+                else:
+                    stackp -= 4
+                    loc = [asm.rbp + stackp]
+            elif argtype == 'double':
+                if len(argf) > 0:
+                    loc = argf.pop(0)
+                else:
+                    stackp -= 4
+                    loc = [asm.rbp + stackp]
+            else:
+                raise TypeError('arg type %s not supported.' % argtype)
+            var = Variable(argtype, argname, reg=loc)
             scope[argname] = var
         
         code = [asm.label(self.name)]
@@ -92,7 +109,7 @@ class Return(CodeObject):
             if expr.type == 'int' and expr.location is not asm.rax:
                 code.append(asm.mov(asm.rax, expr.location))
             elif expr.type == 'double' and expr.location is not asm.xmm0:
-                raise NotImplementedError("can't move result to xmm0 yet")
+                code.append(asm.movsd(asm.xmm0, expr.location))
             
         # code.append(asm.ret())  # Function handles this part.
         return code

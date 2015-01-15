@@ -3,7 +3,7 @@
 import struct, collections
 
 from .register import Register
-from .pointer import Pointer, pack_int, ModRmSib, interpret, rex
+from .pointer import Pointer, pack_int, ModRmSib, rex
 from . import ARCH
 
 
@@ -79,7 +79,11 @@ class Instruction(object):
     operand_size = 'reg'  # operand size is usually determined by register size
     
     def __init__(self, *args):
-        self.args = args
+        self.args = []
+        for arg in args:
+            if isinstance(arg, list):
+                arg = Pointer(arg)
+            self.args.append(arg)
 
         # Analysis of input arguments and the corresponding instruction
         # mode to use 
@@ -198,12 +202,7 @@ class Instruction(object):
     def asm(self):
         """An intel-syntax assembler string matching this instruction.
         """
-        args = []
-        for arg in self.args:
-            if isinstance(arg, list):
-                arg = Pointer(arg[0])
-            args.append(arg)
-        return self.name + ' ' + ', '.join(map(str, args))
+        return self.name + ' ' + ', '.join(map(str, self.args))
         
     def __eq__(self, code):
         if isinstance(code, (bytes, bytearray)):
@@ -227,8 +226,6 @@ class Instruction(object):
         for arg in self.args:
             if 'long' not in globals():
                 long = int
-            if isinstance(arg, list):
-                arg = interpret(arg)
                 
             if isinstance(arg, Register):
                 if arg.name.startswith('xmm'):
