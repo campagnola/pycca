@@ -103,18 +103,31 @@ def test_generate_asm():
     # Need to be sure that str(instr) generates accurate strings or else 
     # we may get false positive tests.
     assert str(mov(rax, rbx)) == 'mov rax, rbx'
-    assert str(mov(rax, [rbx])) == 'mov rax, [rbx]'
-    assert str(mov(rax, [rbx+rax])) == 'mov rax, [rbx + rax]'
-    assert str(mov(rax, [rax+rbx])) == 'mov rax, [rax + rbx]'
-    assert str(mov(rax, [rax+rbx*4])) == 'mov rax, [4*rbx + rax]'
-    assert str(mov(rax, [rax*4+rbx])) == 'mov rax, [4*rax + rbx]'
-    assert str(mov(rax, [0x100+rbx])) == 'mov rax, [0x100 + rbx]'
-    assert str(mov(rax, [0x100+rbx+rax])) == 'mov rax, [0x100 + rbx + rax]'
-    assert str(mov(rax, [0x100+rax+rbx])) == 'mov rax, [0x100 + rax + rbx]'
-    assert str(mov(rax, [0x100+rax+rbx*4])) == 'mov rax, [0x100 + 4*rbx + rax]'
-    assert str(mov(rax, [0x100+rax*4+rbx])) == 'mov rax, [0x100 + 4*rax + rbx]'
-    assert str(mov(rax, [0x100])) == 'mov rax, [0x100]'
-    # check byte, word, dword, qword, imm
+    ptypes = [
+        ('', lambda x: x),
+        ('byte ptr ', byte),
+        ('word ptr ', word),
+        ('dword ptr ', dword),
+        ('qword ptr ', qword),
+    ]
+    for name, fn in ptypes:
+        assert str(mov(rax, fn([rbx]))) == 'mov rax, %s[rbx]' % name
+        assert str(mov(rax, fn([rbx+rax]))) == 'mov rax, %s[rbx + rax]' % name
+        assert str(mov(rax, fn([rax+rbx]))) == 'mov rax, %s[rax + rbx]' % name
+        assert str(mov(rax, fn([rax+rbx*4]))) == 'mov rax, %s[4*rbx + rax]' % name
+        assert str(mov(rax, fn([rax*4+rbx]))) == 'mov rax, %s[4*rax + rbx]' % name
+        assert str(mov(rax, fn([rax*4]))) == 'mov rax, %s[4*rax]' % name
+        assert str(mov(rax, fn([0x100+rbx]))) == 'mov rax, %s[0x100 + rbx]' % name
+        assert str(mov(rax, fn([0x100+rbx+rax]))) == 'mov rax, %s[0x100 + rbx + rax]' % name
+        assert str(mov(rax, fn([0x100+rax+rbx]))) == 'mov rax, %s[0x100 + rax + rbx]' % name
+        assert str(mov(rax, fn([0x100+rax+rbx*4]))) == 'mov rax, %s[0x100 + 4*rbx + rax]' % name
+        assert str(mov(rax, fn([0x100+rax*4+rbx]))) == 'mov rax, %s[0x100 + 4*rax + rbx]' % name
+        assert str(mov(rax, fn([0x100+rax*4]))) == 'mov rax, %s[0x100 + 4*rax]' % name
+        assert str(mov(rax, fn([0x100]))) == 'mov rax, %s[0x100]' % name
+    assert str(mov(rax, 1)) == 'mov rax, 1'
+    assert str(mov(rax, 100)) == 'mov rax, 100'
+    assert str(mov(rax, 100000000)) == 'mov rax, 100000000'
+
     
 
 def test_pack_int():
