@@ -38,7 +38,7 @@ def itest(instr):
         if code1 == code2:
             return
         else:
-            print("\n" + str(instr))
+            print("\n---------\n" + str(instr))
             sys.stdout.write("py:  ")
             phexbin(code1)
             sys.stdout.write("gnu: ")
@@ -47,9 +47,15 @@ def itest(instr):
     elif err1 is not None and err2 is not None:
         return
     elif err1 is None:
+        print("\n---------\n" + str(instr))
+        sys.stdout.write("py:  ")
+        phexbin(code1)
         print("\n" + err2.output)
         raise err2
     elif err2 is None:
+        print("\n---------\n" + str(instr))
+        sys.stdout.write("gnu: ")
+        phexbin(code2)
         raise err1
 
 
@@ -149,9 +155,13 @@ def test_mov():
     itest(mov(rax, 0x1234567891))
     itest(mov(rax, rbx))
     itest(mov(qword([0x12345]), rax))
-    itest(mov(dword([0x12345]), eax))
+    # note: these tests fail on 32-bit because GNU prefers a shorthand encoding
+    # A3/A1+disp32 but the mode used on 64-bit (89/8B) should work as well. 
+    #     itest(mov(dword([0x12345]), ecx))
+    #     itest(mov(eax, dword([0x12345])))
+    itest(mov(dword([0x12345]), ecx))
     itest(mov(rax, qword([0x12345])))
-    itest(mov(eax, dword([0x12345])))
+    itest(mov(ecx, dword([0x12345])))
     itest(mov(rax, qword([rbx])))
     itest(mov(rax, qword([rcx+rbx])))
     itest(mov(rax, qword([8*rbx+rcx])))
@@ -159,28 +169,32 @@ def test_mov():
     itest(mov(rax, '\xdd'*8))
     itest(mov(qword([0x12345]), '\0'*8))
 
-#def test_movsd():
-    #assert movsd(xmm1, [rax+rbx*4+0x1000]) == as_code('movsd xmm1, qword ptr [rax+rbx*4+0x1000]')
-    #assert movsd([rax+rbx*4+0x1000], xmm1) == as_code('movsd qword ptr [rax+rbx*4+0x1000], xmm1')
+def test_movsd():
+    itest(movsd(xmm1, [rax+rbx*4+0x1000]))
+    itest(movsd([rax+rbx*4+0x1000], xmm1))
+    itest(movsd(xmm1, qword([eax+ebx*4+0x1000])))
+    itest(movsd(qword([eax+ebx*4+0x1000]), xmm1))
 
 
 # Procedure management instructions
 
 def test_push():
-    reg = rax
-    # can we push a register?
-    itest(push, reg, 'push %s' % reg.name)
-    
-    # can we push immediate values?
-    itest(push, reg, 'push %s' % reg.name)        
-    
-    # can we push from memory? 
-    for py,asm in addresses(reg):
-        itest(push, py, 'push '+asm)
+    itest(push(rcx))
+    itest(push(ecx))
+    itest(push([ecx]))
+    itest(push([rcx]))
+    itest(push(0x10))
+    itest(push(0x10000))
 
 def test_pop():
-    assert pop(rbp) == as_code('pop rbp')
-    #assert pop(rax) == as_code('pop rax')
+    # Note: GNU generates an encoding for pop(rcx) on 32-bit
+    # even though the intel ref says this is not encodable. 
+    if ARCH == 32:
+        itest(pop(ebp))
+        itest(pop([ecx]))
+    else:
+        itest(pop(rbp))
+        itest(pop([rcx]))
 
 def test_ret():
     assert ret() == as_code('ret')
