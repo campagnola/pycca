@@ -4,10 +4,23 @@ from pytest import raises
 from pycc.asm import *
 from pycc.asm.pointer import Pointer, rex, pack_int
 
-    
+# Note: when running GNU-as in 32-bit mode, the rxx registers do not exist. 
+# This would be fine except that instead of generating an error, the 
+# compiler simply treats the unknown name as a null pointer [0x0]. To work 
+# around this, we first probe AS to see which registers it doesn't know about,
+# then raise an exception when attempting to compile using those registers.
+invalid_regs = []
 regs = {}
+_nullptr = as_code('push [0x0]')
 for name,obj in list(globals().items()):
     if isinstance(obj, Register):
+        try:
+            if as_code('push %s' % obj.name) == _nullptr:
+                invalid_regs.append(obj.name)
+        except:
+            pass
+        
+        # While we're here, make register groups easier to access:
         regs.setdefault('all', []).append(obj)
         regs.setdefault(obj.bits, []).append(obj)
         if 'mm' not in obj.name:
@@ -28,8 +41,16 @@ def itest(instr):
     except TypeError as exc:
         err1 = exc
         
+    asm = str(instr)
+        
     try:
-        code2 = as_code(str(instr), quiet=True)
+        # make sure no invalid registers are used; GNU ignores these silently :(
+        for reg in invalid_regs:
+            if reg in asm:
+                exc = Exception("GNU AS unrecognized symbol '%s'" % reg)
+                exc.output = ''
+                raise exc
+        code2 = as_code(asm, quiet=True)
         err2 = None
     except Exception as exc:
         err2 = exc
@@ -38,7 +59,7 @@ def itest(instr):
         if code1 == code2:
             return
         else:
-            print("\n---------\n" + str(instr))
+            print("\n---------\n" + asm)
             sys.stdout.write("py:  ")
             phexbin(code1)
             sys.stdout.write("gnu: ")
@@ -75,13 +96,13 @@ def addresses(base):
 
 def test_effective_address():
     # test that register/scale/offset arithmetic works
-    assert str(Pointer([rax])) == '[rax]'
-    assert str(rax + rbx) == '[rax + rbx]'
-    assert str(8*rax + rbx) == '[8*rax + rbx]'
-    assert str(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
+    assert str(Pointer([eax])) == '[eax]'
+    assert str(eax + ebx) == '[eax + ebx]'
+    assert str(8*eax + ebx) == '[8*eax + ebx]'
+    assert str(ebx + 4*ecx + 0x1000) == '[0x1000 + 4*ecx + ebx]'
     assert str(Pointer([0x1000])) == '[0x1000]'
-    assert str(0x1000 + rcx) == '[0x1000 + rcx]'
-    assert str(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
+    assert str(0x1000 + ecx) == '[0x1000 + ecx]'
+    assert str(0x1000 + 2*ecx) == '[0x1000 + 2*ecx]'
 
     # test that we can generate a variety of mod_r/m+sib+disp strings
     itest(mov(edx, dword([eax])))
@@ -93,22 +114,22 @@ def test_effective_address():
     itest(mov(edx, dword([0x1000 + 2*ecx])))
 
     # test using rbp as the SIB base
-    itest(mov(edx, dword([ebp + 4*rcx + 0x1000])))
+    itest(mov(edx, dword([ebp + 4*ecx + 0x1000])))
     
     # test using esp as the SIB offset
     with raises(TypeError):
-        (rbx + 4*esp + 0x1000).modrm_sib(rdx)
+        (ebx + 4*esp + 0x1000).modrm_sib(edx)
     with raises(TypeError):
-        (4*esp + 0x1000).modrm_sib(rdx)
+        (4*esp + 0x1000).modrm_sib(edx)
     
     # test rex prefix:
-    assert Pointer([r8]).modrm_sib(rax)[0] == rex.b
+    assert Pointer([r8]).modrm_sib(eax)[0] == rex.b
 
 
 def test_generate_asm():
     # Need to be sure that str(instr) generates accurate strings or else 
     # we may get false positive tests.
-    assert str(mov(rax, rbx)) == 'mov rax, rbx'
+    assert str(mov(eax, ebx)) == 'mov eax, ebx'
     ptypes = [
         ('', lambda x: x),
         ('byte ptr ', byte),
@@ -117,22 +138,22 @@ def test_generate_asm():
         ('qword ptr ', qword),
     ]
     for name, fn in ptypes:
-        assert str(mov(rax, fn([rbx]))) == 'mov rax, %s[rbx]' % name
-        assert str(mov(rax, fn([rbx+rax]))) == 'mov rax, %s[rbx + rax]' % name
-        assert str(mov(rax, fn([rax+rbx]))) == 'mov rax, %s[rax + rbx]' % name
-        assert str(mov(rax, fn([rax+rbx*4]))) == 'mov rax, %s[4*rbx + rax]' % name
-        assert str(mov(rax, fn([rax*4+rbx]))) == 'mov rax, %s[4*rax + rbx]' % name
-        assert str(mov(rax, fn([rax*4]))) == 'mov rax, %s[4*rax]' % name
-        assert str(mov(rax, fn([0x100+rbx]))) == 'mov rax, %s[0x100 + rbx]' % name
-        assert str(mov(rax, fn([0x100+rbx+rax]))) == 'mov rax, %s[0x100 + rbx + rax]' % name
-        assert str(mov(rax, fn([0x100+rax+rbx]))) == 'mov rax, %s[0x100 + rax + rbx]' % name
-        assert str(mov(rax, fn([0x100+rax+rbx*4]))) == 'mov rax, %s[0x100 + 4*rbx + rax]' % name
-        assert str(mov(rax, fn([0x100+rax*4+rbx]))) == 'mov rax, %s[0x100 + 4*rax + rbx]' % name
-        assert str(mov(rax, fn([0x100+rax*4]))) == 'mov rax, %s[0x100 + 4*rax]' % name
-        assert str(mov(rax, fn([0x100]))) == 'mov rax, %s[0x100]' % name
-    assert str(mov(rax, 1)) == 'mov rax, 1'
-    assert str(mov(rax, 100)) == 'mov rax, 100'
-    assert str(mov(rax, 100000000)) == 'mov rax, 100000000'
+        assert str(mov(eax, fn([ebx]))) == 'mov eax, %s[ebx]' % name
+        assert str(mov(eax, fn([ebx+eax]))) == 'mov eax, %s[ebx + eax]' % name
+        assert str(mov(eax, fn([eax+ebx]))) == 'mov eax, %s[eax + ebx]' % name
+        assert str(mov(eax, fn([eax+ebx*4]))) == 'mov eax, %s[4*ebx + eax]' % name
+        assert str(mov(eax, fn([eax*4+ebx]))) == 'mov eax, %s[4*eax + ebx]' % name
+        assert str(mov(eax, fn([eax*4]))) == 'mov eax, %s[4*eax]' % name
+        assert str(mov(eax, fn([0x100+ebx]))) == 'mov eax, %s[0x100 + ebx]' % name
+        assert str(mov(eax, fn([0x100+ebx+eax]))) == 'mov eax, %s[0x100 + ebx + eax]' % name
+        assert str(mov(eax, fn([0x100+eax+ebx]))) == 'mov eax, %s[0x100 + eax + ebx]' % name
+        assert str(mov(eax, fn([0x100+eax+ebx*4]))) == 'mov eax, %s[0x100 + 4*ebx + eax]' % name
+        assert str(mov(eax, fn([0x100+eax*4+ebx]))) == 'mov eax, %s[0x100 + 4*eax + ebx]' % name
+        assert str(mov(eax, fn([0x100+eax*4]))) == 'mov eax, %s[0x100 + 4*eax]' % name
+        assert str(mov(eax, fn([0x100]))) == 'mov eax, %s[0x100]' % name
+    assert str(mov(eax, 1)) == 'mov eax, 1'
+    assert str(mov(eax, 100)) == 'mov eax, 100'
+    assert str(mov(eax, 100000000)) == 'mov eax, 100000000'
 
     
 
@@ -187,14 +208,10 @@ def test_push():
     itest(push(0x10000))
 
 def test_pop():
-    # Note: GNU generates an encoding for pop(rcx) on 32-bit
-    # even though the intel ref says this is not encodable. 
-    if ARCH == 32:
-        itest(pop(ebp))
-        itest(pop([ecx]))
-    else:
-        itest(pop(rbp))
-        itest(pop([rcx]))
+    itest(pop(ebp))
+    itest(pop([ecx]))
+    itest(pop(rbp))
+    itest(pop([rcx]))
 
 def test_ret():
     assert ret() == as_code('ret')
