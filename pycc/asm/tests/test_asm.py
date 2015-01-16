@@ -15,7 +15,7 @@ _nullptr = as_code('push [0x0]')
 for name,obj in list(globals().items()):
     if isinstance(obj, Register):
         try:
-            if as_code('push %s' % obj.name) == _nullptr:
+            if as_code('push %s' % obj.name, quiet=True) == _nullptr:
                 invalid_regs.append(obj.name)
         except:
             pass
@@ -214,8 +214,8 @@ def test_pop():
     itest(pop([rcx]))
 
 def test_ret():
-    assert ret() == as_code('ret')
-    #assert ret(4) == as_code('ret 4')
+    itest(ret())
+    itest(ret(4))
 
 def test_call():
     # relative calls
@@ -223,98 +223,98 @@ def test_call():
     assert call(-0x1000) == as_code('call .-0x1000')
     code = call('label').code
     assert code.compile({'label': 0x0, 'next_instr_addr': 5}) == as_code('label:\ncall label')
+    
     # absolute calls
-    assert call(rax) == as_code('call rax')
+    itest(call(rax))
+    itest(call(eax))
 
 
 # Arithmetic instructions
 
 def test_add():
-    assert add(rax, rbx) == as_code('add rax, rbx')
-    assert add(rbx, 0x1000) == as_code('add rbx, 0x1000')
-    assert add(dword([0x1000]), eax) == as_code('add dword ptr [0x1000], eax')
-    assert add(eax, dword([0x1000])) == as_code('add eax, dword ptr [0x1000]')
-    #assert add([0x1000], rax) == as_code('add qword ptr [0x1000], rax')
-    #assert add(rax, [0x1000]) == as_code('add rax, qword ptr [0x1000]')
-    assert add(dword([0x1000]), 0x1000) == as_code('add dword ptr [0x1000], 0x1000')
+    itest( add(rax, rbx) )
+    itest( add(rbx, 0x1000) )
+    itest( add(dword([0x1000]), eax) )
+    itest( add(eax, dword([0x1000])) )
+    itest( add(dword([0x1000]), 0x1000) )
     
 def test_sub():
-    assert sub(rax, rbx) == as_code('sub rax, rbx')
-    assert sub(rbx, 0x1000) == as_code('sub rbx, 0x1000')
-    assert sub(dword([0x1000]), eax) == as_code('sub dword ptr [0x1000], eax')
-    assert sub(eax, dword([0x1000])) == as_code('sub eax, dword ptr [0x1000]')
-    #assert add([0x1000], rax) == as_code('add qword ptr [0x1000], rax')
-    #assert add(rax, [0x1000]) == as_code('add rax, qword ptr [0x1000]')
-    assert sub(dword([0x1000]), 0x1000) == as_code('sub dword ptr [0x1000], 0x1000')
+    itest( sub(rax, rbx) )
+    itest( sub(rbx, 0x1000) )
+    itest( sub(dword([0x1000]), eax) )
+    itest( sub(eax, dword([0x1000])) )
+    #itest( add([0x1000], rax) )
+    #itest( add(rax, [0x1000]) )
+    itest( sub(dword([0x1000]), 0x1000) )
     
 def test_dec():
-    assert dec(dword([0x1000])) == as_code('dec dword ptr [0x1000]')
-    assert dec(eax) == as_code('dec eax')
-    assert dec(rax) == as_code('dec rax')
+    itest( dec(dword([0x1000])) )
+    itest( dec(eax) )
+    itest( dec(rax) )
 
 def test_inc():
-    assert inc(dword([0x1000])) == as_code('inc dword ptr [0x1000]')
-    assert inc(eax) == as_code('inc eax')
-    assert inc(rax) == as_code('inc rax')
+    itest( inc(dword([0x1000])) )
+    itest( inc(eax) )
+    itest( inc(rax) )
 
 def test_imul():
-    assert imul(eax, ebp) == as_code('imul eax, ebp')
+    itest( imul(eax, ebp) )
     
 def test_idiv():
-    assert idiv(ebp) == as_code('idiv ebp')
+    itest( idiv(ebp) )
 
 def test_lea():
-    assert lea(rax, [rbx+rcx*2+0x100]) == as_code('lea rax, [rbx+rcx*2+0x100]')
-    assert lea(rax, [ebx+ecx*2+0x100]) == as_code('lea rax, [ebx+ecx*2+0x100]')
-    assert lea(eax, [rbx+rcx*2+0x100]) == as_code('lea eax, [rbx+rcx*2+0x100]')
-    assert lea(eax, [ebx+ecx*2+0x100]) == as_code('lea eax, [ebx+ecx*2+0x100]')
+    itest( lea(rax, [rbx+rcx*2+0x100]) )
+    itest( lea(rax, [ebx+ecx*2+0x100]) )
+    itest( lea(eax, [rbx+rcx*2+0x100]) )
+    itest( lea(eax, [ebx+ecx*2+0x100]) )
 
 def test_fld():
-    assert fld(dword([rax])) == as_code('fld dword ptr [rax]')
-    assert fld(qword([rax+rcx*8])) == as_code('fld qword ptr [rax+rcx*8]')
-    assert fld(st(4)) == as_code('fld st(4)')
+    itest( fld(dword([rax])) )
+    itest( fld(qword([rax+rcx*8])) )
+    itest( fld(st(4)) )
 
 def test_fst():
-    assert fst(dword([rax])) == as_code('fst dword ptr [rax]')
-    assert fst(qword([rax+rcx*8])) == as_code('fst qword ptr [rax+rcx*8]')
-    assert fst(st(4)) == as_code('fst st(4)')
+    itest( fst(dword([rax])) )
+    itest( fst(qword([rax+rcx*8])) )
+    itest( fst(st(4)) )
 
 def test_fstp():
-    assert fstp(dword([rax])) == as_code('fstp dword ptr [rax]')
-    assert fstp(qword([rax+rcx*8])) == as_code('fstp qword ptr [rax+rcx*8]')
-    assert fstp(st(4)) == as_code('fstp st(4)')
+    itest( fstp(dword([rax])) )
+    itest( fstp(qword([rax+rcx*8])) )
+    itest( fstp(st(4)) )
 
 def test_fild():
-    assert fild(word([rax])) == as_code('fild word ptr [rax]')
-    assert fild(dword([rax])) == as_code('fild dword ptr [rax]')
-    assert fild(qword([rax+rcx*8])) == as_code('fild qword ptr [rax+rcx*8]')
+    itest( fild(word([rax])) )
+    itest( fild(dword([rax])) )
+    itest( fild(qword([rax+rcx*8])) )
 
 def test_fist():
-    assert fist(word([rax])) == as_code('fist word ptr [rax]')
-    assert fist(dword([rax])) == as_code('fist dword ptr [rax]')
+    itest( fist(word([rax])) )
+    itest( fist(dword([rax])) )
 
 def test_fistp():
-    assert fistp(word([rax])) == as_code('fistp word ptr [rax]')
-    assert fistp(dword([rax])) == as_code('fistp dword ptr [rax]')
-    assert fistp(qword([rax+rcx*8])) == as_code('fistp qword ptr [rax+rcx*8]')
+    itest( fistp(word([rax])) )
+    itest( fistp(dword([rax])) )
+    itest( fistp(qword([rax+rcx*8])) )
 
 def test_fabs():
-    assert fabs() == as_code('fabs')
+    itest( fabs() )
 
 def test_fadd():
-    assert fadd() == as_code('fadd')
-    assert fadd(dword([rax])) == as_code('fadd dword ptr [rax]')
-    assert fadd(qword([rax])) == as_code('fadd qword ptr [rax]')
-    assert fadd(st(0), st(4)) == as_code('fadd st(0), st(4)')
-    assert fadd(st(4), st(0)) == as_code('fadd st(4), st(0)')
+    itest( fadd() )
+    itest( fadd(dword([rax])) )
+    itest( fadd(qword([rax])) )
+    itest( fadd(st(0), st(4)) )
+    itest( fadd(st(4), st(0)) )
     
 def test_faddp():
-    assert faddp() == as_code('faddp')
-    assert faddp(st(4), st(0)) == as_code('faddp st(4), st(0)')
+    itest( faddp() )
+    itest( faddp(st(4), st(0)) )
     
 def test_fiadd():
-    assert fiadd(dword([rax])) == as_code('fiadd dword ptr [rax]')
-    assert fiadd(word([rax])) == as_code('fiadd word ptr [rax]')
+    itest( fiadd(dword([rax])) )
+    itest( fiadd(word([rax])) )
     
     
     
@@ -322,18 +322,18 @@ def test_fiadd():
 # Testing instructions
 
 def test_cmp():
-    assert cmp(dword(0x1000), 0x1000) == as_code('cmp dword ptr [0x1000], 0x1000')
-    assert cmp(rbx, 0x1000) == as_code('cmp rbx, 0x1000')
-    assert cmp(qword(rbx+0x1000), 0x1000) == as_code('cmp qword ptr [rbx+0x1000], 0x1000')
+    itest( cmp(dword(0x1000), 0x1000) )
+    itest( cmp(rbx, 0x1000) )
+    itest( cmp(qword(rbx+0x1000), 0x1000) )
 
 def test_test():
-    assert test(eax, eax) == as_code('test eax,eax')
+    itest( test(eax, eax) )
 
 
 # Branching instructions
 
 def test_jmp():
-    assert jmp(rax) == as_code('jmp rax')
+    itest( jmp(rax) )
     assert jmp(0x1000) == as_code('jmp .+0x1000')    
 
 def test_jcc():
@@ -348,22 +348,22 @@ def test_jcc():
 # OS instructions
 
 def test_syscall():
-    assert syscall() == as_code('syscall')
+    itest( syscall() )
 
 def test_int():
-    assert int_(0x80) == as_code('int 0x80')
+    itest( int_(0x80) )
 
 
 
-# Extensive address encoding test
 def test_push():
+    # can we push immediate values?
+    itest(push(0x5))
+    
+    # Extensive address encoding test
     for reg in regs['gp']:
         # can we push a register?
-        itest(push, reg, 'push %s' % reg.name)
-        
-        # can we push immediate values?
-        itest(push, reg, 'push %s' % reg.name)        
+        itest(push(reg))
         
         # can we push from memory? 
         for py,asm in addresses(reg):
-            itest(push, py, 'push '+asm)
+            itest(push(py))

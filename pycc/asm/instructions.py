@@ -80,7 +80,7 @@ class ret(Instruction):
     }
 
 
-def leave():
+class leave(Instruction):
     """ LEAVE
     
     High-level procedure exit.
@@ -89,7 +89,12 @@ def leave():
        mov(esp, ebp)
        pop(ebp)
     """
-    return b'\xc9'
+    name = 'leave'
+    
+    modes = collections.OrderedDict([
+        ((), ['c9', None, True, True]),
+    ])
+        
 
 
 class call(RelBranchInstruction):
@@ -186,24 +191,6 @@ class movsd(Instruction):
         'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
     }
     
-#def movsd(dst, src):
-    #"""
-    #MOVSD xmm1, xmm2/m64
-    #Opcode (mem=>xmm): f2 0f 10 /r
-    
-    #MOVSD xmm2/m64, xmm1
-    #Opcode (xmm=>mem): f2 0f 11 /r
-    
-    #Move scalar double-precision float
-    #"""
-    #modrm = ModRmSib(dst, src)
-    #if modrm.argtypes in ('rr', 'rm'):
-        #assert dst.bits == 128
-        #return '\xf2\x0f\x10' + modrm.code
-    #else:
-        #assert src.bits == 128
-        #return '\xf2\x0f\x11' + modrm.code
-        
 
 
 #   Arithmetic instructions
@@ -831,7 +818,7 @@ js   = _jcc('js',   '0f88', """Jump near if sign (SF=1).""")
 #----------------------------------------
 
 
-def int_(code):
+class int_(Instruction):
     """INT code
     
     Call to interrupt. Code is 1 byte.
@@ -839,8 +826,20 @@ def int_(code):
     Common interrupt codes:
     0x80 = OS
     """
-    return b'\xcd' + bytearray([code])
+    name = 'int'
+    
+    modes = collections.OrderedDict([
+        (('imm8',), ['cd ib', 'i', True, True]),
+    ])
+    
+    operand_enc = {
+        'i': ['imm8']
+    }
 
-def syscall():
-    return b'\x0f\x05'
+class syscall(Instruction):
+    name = 'syscall'
+    
+    modes = collections.OrderedDict([
+        ((), ['0f05', None, True, True]),
+    ])
 

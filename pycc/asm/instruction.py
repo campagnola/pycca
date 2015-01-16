@@ -233,6 +233,7 @@ class Instruction(object):
                 long = int
                 
             if isinstance(arg, Register):
+                arg.check_arch()
                 if arg.name.startswith('xmm'):
                     sig.append('xmm')
                 elif arg.name.startswith('st('):
@@ -240,6 +241,7 @@ class Instruction(object):
                 else:
                     sig.append('r%d' % arg.bits)
             elif isinstance(arg, Pointer):
+                arg.check_arch()
                 sig.append('m%d' % arg.bits)
             elif isinstance(arg, (int, long)):
                 arg = pack_int(arg, int8=True)

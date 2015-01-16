@@ -349,6 +349,12 @@ class Pointer(object):
     def bits(self, b):
         self._bits = b
 
+    def check_arch(self):
+        if self.reg1 is not None:
+            self.reg1.check_arch()
+        if self.reg2 is not None:
+            self.reg2.check_arch()
+    
     def __add__(self, x):
         y = self.copy()
         if isinstance(x, Register):

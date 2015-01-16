@@ -75,7 +75,13 @@ class Register(object):
     def __str__(self):
         return self._name
 
-
+    def check_arch(self):
+        """Raise an exception if this register is not supported for the current
+        architecture. 
+        """
+        if ARCH == 32 and self.name[0] == 'r':
+            raise TypeError("Register %s not supported on 32 bit arch." % self.name)
+        
 
 
 
