@@ -4,23 +4,10 @@ from pytest import raises
 from pycc.asm import *
 from pycc.asm.pointer import Pointer, rex, pack_int
 
-# Note: when running GNU-as in 32-bit mode, the rxx registers do not exist. 
-# This would be fine except that instead of generating an error, the 
-# compiler simply treats the unknown name as a null pointer [0x0]. To work 
-# around this, we first probe AS to see which registers it doesn't know about,
-# then raise an exception when attempting to compile using those registers.
-invalid_regs = []
+# Catalog of registers
 regs = {}
-_nullptr = as_code('push [0x0]')
 for name,obj in list(globals().items()):
     if isinstance(obj, Register):
-        try:
-            if as_code('push %s' % obj.name, quiet=True) == _nullptr:
-                invalid_regs.append(obj.name)
-        except:
-            pass
-        
-        # While we're here, make register groups easier to access:
         regs.setdefault('all', []).append(obj)
         regs.setdefault(obj.bits, []).append(obj)
         if 'mm' not in obj.name:
@@ -38,14 +25,7 @@ def itest(instr):
     asm = str(instr)
     
     def as_code_checkreg(asm):
-        # make sure no invalid registers are used; GNU ignores these silently :(
-        global invalid_regs
-        for reg in invalid_regs:
-            if reg in asm:
-                exc = Exception("GNU AS unrecognized symbol '%s'" % reg)
-                exc.output = ''
-                raise exc
-        return as_code(asm, quiet=True)
+        return as_code(asm, quiet=True, check_invalid_regs=True)
     
     try:
         code1 = instr.code

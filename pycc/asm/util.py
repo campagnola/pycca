@@ -60,9 +60,9 @@ def compare(instr):
         phexbin(code1)
         print("[gnu-as failed; pycc did not]")
         raise
-    
 
-def run_as(asm, quiet=False):
+    
+def run_as(asm, quiet=False, check_invalid_reg=False):
     """ Use gnu as and objdump to show ideal compilation of *asm*.
     
     This prepends the given code with ".intel_syntax noprefix\n" 
@@ -73,6 +73,11 @@ def run_as(asm, quiet=False):
     #.align 4
     #_start:
     #""" + asm + '\n'
+    if check_invalid_reg:
+        for reg in invalid_regs():
+            if reg.name in asm:
+                raise Exception("asm '%s' contains invalid register '%s'" % (asm, reg.name))
+    
     asm = ".intel_syntax noprefix\n" + asm + "\n"
     #print asm
     fname = tempfile.mktemp('.s')
@@ -97,11 +102,12 @@ def run_as(asm, quiet=False):
     exc.output = '\n'.join(out)
     raise exc
 
-def as_code(asm, quiet=False):
+
+def as_code(asm, quiet=False, check_invalid_reg=False):
     """Return machine code string for *asm* using gnu as and objdump.
     """
     code = b''
-    for line in run_as(asm, quiet=quiet):
+    for line in run_as(asm, quiet=quiet, check_invalid_reg=check_invalid_reg):
         if line.strip() == '':
             continue
         m = re.match(r'\s*[a-f0-9]+:\s+(([a-f0-9][a-f0-9]\s+)+)', line)
@@ -113,5 +119,77 @@ def as_code(asm, quiet=False):
                 continue
             code += bytearray.fromhex(byt)
     return code
+
+
+def all_registers():
+    """Return all registers defined in asm.register
+    """
+    from . import register
+    regs = []
+    for name in dir(register):
+        obj = getattr(register, name)
+        if isinstance(obj, register.Register):
+            regs.append(obj)
+    return regs
+
+
+_invalid_regs = None
+def invalid_regs():
+    """Return a list of registers that are invalid for GNU-as on this arch.
+    
+    When running GNU-as in 32-bit mode, the rxx registers do not exist. 
+    This would be fine except that instead of generating an error, the 
+    compiler simply treats the unknown name as a null pointer [0x0]. To work 
+    around this, we first probe AS to see which registers it doesn't know about,
+    then raise an exception when attempting to compile using those registers.
+    """
+    from . import register
+    global _invalid_regs
+    if _invalid_regs is not None:
+        return _invalid_regs
+
+    _invalid_regs = []
+    nullptr = as_code('push [0x0]')
+    for reg in all_registers():
+        try:
+            code = as_code('push %s' % reg.name, quiet=True)
+            if code == nullptr:
+                _invalid_regs.append(reg)
+        except:
+            pass
+    return _invalid_regs
+            
+
+def check_valid_pointer(pre='push ', post=''):
+    """Print a table indicating valid pointer modes for each register.
+    """
+    invalid = as_code('push [0]', quiet=True)
+    regs = all_registers()
+    regs.sort(key=lambda a: (a.bits, a.name))
+    checks = ['[{reg}]',   '[2*{reg}]',   '[{reg}+{reg}]',   '[2*{reg}+{reg}]', 
+              '[{reg}+1]', '[2*{reg}+1]', '[{reg}+{reg}+1]', '[2*{reg}+{reg}+1]']
+    line = 'reg    '
+    cols = [len(line)]
+    for check in checks:
+        add = check.format(reg='reg')+'  '
+        cols.append(len(add))
+        line += add
+    print(line)
+        
+    for reg in regs:
+        if reg in invalid_regs():
+            continue
+        line = reg.name + ':'
+        line += ' '*(cols[0]-len(line))
+        for i,check in enumerate(checks):
+            try:
+                asm = pre + check.format(reg=reg.name) + post
+                code = as_code(asm, quiet=True, check_invalid_reg=True)
+                assert code != invalid
+                #phexbin(code)
+                line += 'XXX' + ' '*(cols[i+1]-3)
+            except:
+                line += '.' + ' '*(cols[i+1]-1)
+        print(line)
 
 
