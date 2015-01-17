@@ -31,47 +31,36 @@ def phexbin(code):
         print(line)
 
 
-def compare(instr_class, *args):
+def compare(instr):
     """Print instruction's code beside the output of gnu as.
     """
+    asm = str(instr)
+    print("asm:  " + asm)
     
     try:
-        code1 = instr_class(*args).code
-        failed1 = False
+        code1 = instr.code
     except Exception as exc1:
-        failed1 = True
+        try:
+            code2 = as_code(asm)
+        except Exception as exc2:
+            print(exc1.message)
+            print("[pycc and gnu-as both failed.]")
+            return
+        print("[pycc failed; gnu-as did not]")
+        phexbin(code2)
+        raise
 
-    args2 = []
-    for arg in args:
-        if isinstance(arg, list):
-            arg = Pointer(arg[0])
-        args2.append(arg)
-    asm = instr_class.__name__ + ' ' + ', '.join(map(str, args2))
-    print("asm:  ", asm)
-    
     try:
         code2 = as_code(asm)
-        failed2 = False
-    except Exception as exc2:
-        failed2 = True
-        
-    if failed1 and not failed2:
-        print("[pycc failed; gnu as did not]")
-        phexbin(code2)
-        raise exc1
-    elif failed2 and not failed1:
-        phexbin(code1)
-        print("[gnu as failed; pycc did not]")
-        raise exc2
-    elif failed1 and failed2:
-        print(exc1.message)
-        print("[pycc and gnu as both failed.]")
-    else:
         phexbin(code1)
         phexbin(code2)
         if code1 == code2:
             print("[codes match]")
-
+    except Exception as exc2:
+        phexbin(code1)
+        print("[gnu-as failed; pycc did not]")
+        raise
+    
 
 def run_as(asm, quiet=False):
     """ Use gnu as and objdump to show ideal compilation of *asm*.

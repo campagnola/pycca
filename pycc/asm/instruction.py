@@ -244,8 +244,15 @@ class Instruction(object):
                 arg.check_arch()
                 sig.append('m%d' % arg.bits)
             elif isinstance(arg, (int, long)):
-                arg = pack_int(arg, int8=True)
-                sig.append('imm%d' % (8*len(arg)))
+                imm = pack_int(arg, int8=True)
+                bits = 8*len(imm)
+                # See if it's possible to pack smaller as uint.
+                if arg >= 0 and arg < 2**(bits//2):
+                    # the 'u' flag is a hint that the imm can be packed 
+                    # smaller using uint.
+                    sig.append('imm%du' % bits)                
+                else:
+                    sig.append('imm%d' % bits)
             elif isinstance(arg, (str, bytes, bytearray)):
                 if len(arg) in (1, 2, 4, 8):
                     sig.append('imm%d' % (len(arg)*8))
@@ -282,34 +289,62 @@ class Instruction(object):
         
         # Check each instruction mode one at a time to see whether it is compatible
         # with supplied arguments.
+        backup_mode = None
         for mode in modes:
             if len(mode) != len(sig):
                 continue
             usemode = True
             for i in range(len(mode)):
-                if self.check_mode(sig[i], mode[i]):
+                check = self.check_mode(sig[i], mode[i])
+                if check is True:
+                    # ok; check next arg
                     continue
-                else:
+                elif check is False:
+                    # not encodable; check next mode
                     usemode = False
                     break
-            
-            if usemode:
+                elif isinstance(check, int):
+                    # ok, but would prefer another mode if possible
+                    if isinstance(usemode, int):
+                        usemode = min(usemode, check)
+                    else:
+                        usemode = check
+                    continue
+                else:
+                    raise RuntimeError("Invalid return type from check_mode().")
+            if usemode is True:
                 self._use_sig = mode
                 self._mode = modes[mode]
                 return
+            elif isinstance(usemode, int):
+                if backup_mode is None or backup_mode[0] < usemode:
+                    backup_mode = (usemode, mode)
         
+        # Didn't find any definite hits, see if a backup mode is available.
+        if backup_mode is not None:
+            self._use_sig = backup_mode[1]
+            self._mode = modes[backup_mode[1]]
+            return
+            
+            
         raise TypeError('Argument types not accepted for instruction %s: %s' 
                         % (self.name, str(orig_sig)))
 
     def check_mode(self, sig, mode):
         """Return True if an argument of type *sig* may be used to satisfy
-        operand type *mode*.
+        operand type *mode*. 
+        
+        The method may instead return an integer to indicate that the mode is
+        encodable but not preferred. 
         
         *sig* may look like 'r16', 'm32', 'imm8', 'rel32', 'xmm1', etc.
         *mode* may look like 'r8', 'm32/64', 'r/m32', 'xmm1/m64', 'xmm2', etc.
+        
+        
         """
         sbits = sig.lstrip('irel/xm')
         stype = sig[:-len(sbits)] if len(sbits) > 0 else sig
+        sbits = sbits.rstrip('u')
         mbits = mode.lstrip('irel/xm')
         mtype = mode[:-len(mbits)] if len(mbits) > 0 else mode
         mbits = mbits.rstrip('fpint')
@@ -327,7 +362,15 @@ class Instruction(object):
         elif mtype == 'r/m':
             return stype in ('r', 'm') and mbits == sbits
         elif mtype == 'imm':
-            return stype == 'imm' and mbits >= sbits
+            if stype != 'imm':
+                return False
+            if mbits >= sbits:
+                return True
+            elif sig[-1] == 'u' and mbits >= sbits//2:
+                # Indicates the mode is encodable but not preferred.
+                return 0
+            else:
+                return False
         elif mtype == 'rel':
             return stype == 'rel'
         elif mtype == 'm':
@@ -451,6 +494,8 @@ class Instruction(object):
             rm: register or pointer to use in the r/m field of a ModR/M byte
             imm: immediate string
         """
+        if 'long' not in globals():
+            long = int
         clean_args = self.clean_args
         operand_enc = self.operand_enc
         use_sig = self.use_sig
@@ -485,9 +530,23 @@ class Instruction(object):
             elif enc.startswith('ModRM:reg'):
                 reg = arg
             elif enc.startswith('imm'):
-                immsize = int(use_sig[i][3:])
+                immsize = int(use_sig[i][3:].rstrip('u'))
+                
+                if isinstance(arg, (int, long)):
+                    # pack integer operand
+                    styp = {8: 'b', 16: 'h', 32: 'i', 64: 'q'}
+                    try:
+                        arg = struct.pack(styp[immsize], arg)
+                    except struct.error:
+                        # can't encode as signed int; try again as unsigned
+                        # int. This should only happen if a larger imm size
+                        # was not available in the mode list.
+                        arg = struct.pack(styp[immsize].upper(), arg)
+                            
                 opsize = 8 * len(arg)
                 assert opsize <= immsize
+                
+                # pad with 0 if the operand is too small
                 imm = arg + b'\0'*((immsize-opsize)//8)
             else:
                 raise RuntimeError("Invalid operand encoding: %s" % enc)

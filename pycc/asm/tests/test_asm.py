@@ -206,6 +206,12 @@ def test_push():
     itest(push([rcx]))
     itest(push(0x10))
     itest(push(0x10000))
+    itest(push(-129))
+    itest(push(-128))
+    itest(push(-127))
+    itest(push(129))
+    itest(push(128))
+    itest(push(127))
 
 def test_pop():
     itest(pop(ebp))
@@ -352,6 +358,12 @@ def test_syscall():
 
 def test_int():
     itest( int_(0x80) )
+    itest( int_(-129) )
+    itest( int_(-128) )
+    itest( int_(-127) )
+    itest( int_(129) )
+    itest( int_(128) )
+    itest( int_(127) )
 
 
 
