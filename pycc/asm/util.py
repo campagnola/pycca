@@ -160,10 +160,10 @@ def invalid_regs():
     return _invalid_regs
             
 
-def check_valid_pointer(pre='push ', post=''):
+def check_valid_pointer(instr='push', pre=None, post=None):
     """Print a table indicating valid pointer modes for each register.
     """
-    invalid = as_code('push [0]', quiet=True)
+    from . import instructions
     regs = all_registers()
     regs.sort(key=lambda a: (a.bits, a.name))
     checks = ['{reg}', 
@@ -177,20 +177,39 @@ def check_valid_pointer(pre='push ', post=''):
         line += add
     print(line)
         
+    icls = getattr(instructions, instr)
     for reg in regs:
         if reg in invalid_regs() or 'mm' in reg.name:
             continue
         line = reg.name + ':'
         line += ' '*(cols[0]-len(line))
         for i,check in enumerate(checks):
+            arg = check.format(reg=reg.name)
+            arg = eval(arg, {reg.name: reg})
+            args = [x for x in [pre, arg, post] if x is not None]
+            instr = icls(*args)
+            
             try:
-                asm = pre + check.format(reg=reg.name) + post
-                code = as_code(asm, quiet=True, check_invalid_reg=True)
-                assert code != invalid
-                #phexbin(code)
-                line += 'XXX' + ' '*(cols[i+1]-3)
+                code = instr.code
+                err1 = False
             except:
-                line += '.' + ' '*(cols[i+1]-1)
+                err1 = True
+                
+            try:
+                code = as_code(str(instr), quiet=True, check_invalid_reg=True)
+                err2 = False
+            except:
+                err2 = True
+                
+            if err1 and err2:
+                add = '.'
+            elif err1:
+                add = 'GNU'
+            elif err2:
+                add = 'PY'
+            else:
+                add = '+++'
+            line += add + ' '*(cols[i+1]-len(add))
         print(line)
 
 

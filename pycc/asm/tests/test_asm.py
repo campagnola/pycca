@@ -25,7 +25,7 @@ def itest(instr):
     asm = str(instr)
     
     def as_code_checkreg(asm):
-        return as_code(asm, quiet=True, check_invalid_regs=True)
+        return as_code(asm, quiet=True, check_invalid_reg=True)
     
     try:
         code1 = instr.code
@@ -45,7 +45,8 @@ def itest(instr):
         print("\n---------\n" + str(instr))
         sys.stdout.write("py:  ")
         phexbin(code1)
-        print(err.output)
+        if hasattr(err, 'output'):
+            print(err.output)
         raise
     
     if code1 != code2:
@@ -56,51 +57,6 @@ def itest(instr):
         phexbin(code2)
         raise Exception("code mismatch.")
     
-    
-    
-    #try:
-        #code1 = instr.code
-        #err1 = None
-    #except TypeError as exc:
-        #err1 = exc
-        
-    #asm = str(instr)
-        
-    #try:
-        ## make sure no invalid registers are used; GNU ignores these silently :(
-        #for reg in invalid_regs:
-            #if reg in asm:
-                #exc = Exception("GNU AS unrecognized symbol '%s'" % reg)
-                #exc.output = ''
-                #raise exc
-        #code2 = as_code(asm, quiet=True)
-        #err2 = None
-    #except Exception as exc:
-        #err2 = exc
-        
-    #if err1 is None and err2 is None:
-        #if code1 == code2:
-            #return
-        #else:
-            #print("\n---------\n" + asm)
-            #sys.stdout.write("py:  ")
-            #phexbin(code1)
-            #sys.stdout.write("gnu: ")
-            #phexbin(code2)
-            #raise Exception("code mismatch.")
-    #elif err1 is not None and err2 is not None:
-        #return
-    #elif err1 is None:
-        #print("\n---------\n" + str(instr))
-        #sys.stdout.write("py:  ")
-        #phexbin(code1)
-        #print("\n" + err2.output)
-        #raise err2
-    #elif err2 is None:
-        #print("\n---------\n" + str(instr))
-        #sys.stdout.write("gnu: ")
-        #phexbin(code2)
-        #raise err1
 
 
 def addresses(base):
@@ -266,6 +222,7 @@ def test_add():
     itest( add(dword([0x1000]), eax) )
     itest( add(eax, dword([0x1000])) )
     itest( add(dword([0x1000]), 0x1000) )
+    itest( add(ax, [eax]) )
     
 def test_sub():
     itest( sub(rax, rbx) )
