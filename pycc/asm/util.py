@@ -166,9 +166,10 @@ def check_valid_pointer(pre='push ', post=''):
     invalid = as_code('push [0]', quiet=True)
     regs = all_registers()
     regs.sort(key=lambda a: (a.bits, a.name))
-    checks = ['[{reg}]',   '[2*{reg}]',   '[{reg}+{reg}]',   '[2*{reg}+{reg}]', 
+    checks = ['{reg}', 
+              '[{reg}]',   '[2*{reg}]',   '[{reg}+{reg}]',   '[2*{reg}+{reg}]', 
               '[{reg}+1]', '[2*{reg}+1]', '[{reg}+{reg}+1]', '[2*{reg}+{reg}+1]']
-    line = 'reg    '
+    line = '       '
     cols = [len(line)]
     for check in checks:
         add = check.format(reg='reg')+'  '
@@ -177,7 +178,7 @@ def check_valid_pointer(pre='push ', post=''):
     print(line)
         
     for reg in regs:
-        if reg in invalid_regs():
+        if reg in invalid_regs() or 'mm' in reg.name:
             continue
         line = reg.name + ':'
         line += ' '*(cols[0]-len(line))
