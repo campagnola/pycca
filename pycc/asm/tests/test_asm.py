@@ -35,49 +35,92 @@ def itest(instr):
     *args* must be instruction arguments + assembler code to compare 
     as the last argument.
     """
-    try:
-        code1 = instr.code
-        err1 = None
-    except TypeError as exc:
-        err1 = exc
-        
     asm = str(instr)
-        
-    try:
+    
+    def as_code_checkreg(asm):
         # make sure no invalid registers are used; GNU ignores these silently :(
+        global invalid_regs
         for reg in invalid_regs:
             if reg in asm:
                 exc = Exception("GNU AS unrecognized symbol '%s'" % reg)
                 exc.output = ''
                 raise exc
-        code2 = as_code(asm, quiet=True)
-        err2 = None
-    except Exception as exc:
-        err2 = exc
-        
-    if err1 is None and err2 is None:
-        if code1 == code2:
+        return as_code(asm, quiet=True)
+    
+    try:
+        code1 = instr.code
+    except:
+        try:
+            code2 = as_code_checkreg(asm)
+        except:
             return
-        else:
-            print("\n---------\n" + asm)
-            sys.stdout.write("py:  ")
-            phexbin(code1)
-            sys.stdout.write("gnu: ")
-            phexbin(code2)
-            raise Exception("code mismatch.")
-    elif err1 is not None and err2 is not None:
-        return
-    elif err1 is None:
-        print("\n---------\n" + str(instr))
-        sys.stdout.write("py:  ")
-        phexbin(code1)
-        print("\n" + err2.output)
-        raise err2
-    elif err2 is None:
         print("\n---------\n" + str(instr))
         sys.stdout.write("gnu: ")
         phexbin(code2)
-        raise err1
+        raise
+
+    try:
+        code2 = as_code_checkreg(asm)
+    except Exception as err:
+        print("\n---------\n" + str(instr))
+        sys.stdout.write("py:  ")
+        phexbin(code1)
+        print(err.output)
+        raise
+    
+    if code1 != code2:
+        print("\n---------\n" + asm)
+        sys.stdout.write("py:  ")
+        phexbin(code1)
+        sys.stdout.write("gnu: ")
+        phexbin(code2)
+        raise Exception("code mismatch.")
+    
+    
+    
+    #try:
+        #code1 = instr.code
+        #err1 = None
+    #except TypeError as exc:
+        #err1 = exc
+        
+    #asm = str(instr)
+        
+    #try:
+        ## make sure no invalid registers are used; GNU ignores these silently :(
+        #for reg in invalid_regs:
+            #if reg in asm:
+                #exc = Exception("GNU AS unrecognized symbol '%s'" % reg)
+                #exc.output = ''
+                #raise exc
+        #code2 = as_code(asm, quiet=True)
+        #err2 = None
+    #except Exception as exc:
+        #err2 = exc
+        
+    #if err1 is None and err2 is None:
+        #if code1 == code2:
+            #return
+        #else:
+            #print("\n---------\n" + asm)
+            #sys.stdout.write("py:  ")
+            #phexbin(code1)
+            #sys.stdout.write("gnu: ")
+            #phexbin(code2)
+            #raise Exception("code mismatch.")
+    #elif err1 is not None and err2 is not None:
+        #return
+    #elif err1 is None:
+        #print("\n---------\n" + str(instr))
+        #sys.stdout.write("py:  ")
+        #phexbin(code1)
+        #print("\n" + err2.output)
+        #raise err2
+    #elif err2 is None:
+        #print("\n---------\n" + str(instr))
+        #sys.stdout.write("gnu: ")
+        #phexbin(code2)
+        #raise err1
 
 
 def addresses(base):

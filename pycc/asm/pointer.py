@@ -458,7 +458,7 @@ class Pointer(object):
             
             if len(regs) == 0:
                 # displacement only
-                if self.disp in (None, 0):
+                if self.disp is None:
                     raise TypeError("Cannot encode empty pointer.")
                 disp = struct.pack('i', self.disp)
                 # For some reason, GNU prefers to encode [disp] pointers

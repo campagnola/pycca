@@ -3,8 +3,12 @@
 import struct, collections
 
 from .register import Register
-from .pointer import Pointer, pack_int, ModRmSib, rex
+from .pointer import Pointer, pack_int, pack_uint, ModRmSib, rex
 from . import ARCH
+
+
+if 'long' not in globals():
+    long = int
 
 
 #   Misc. utilities required by instructions
@@ -109,6 +113,8 @@ class Instruction(object):
         for arg in self.args:
             if isinstance(arg, list):
                 arg = Pointer(arg)
+            elif isinstance(arg, (str, bytes, bytearray)):
+                arg = '0x' + ''.join(['%02x' % c for c in bytearray(arg)])
             args.append(str(arg))
         return "%s %s" % (self.name, ', '.join(args))
 
@@ -229,9 +235,6 @@ class Instruction(object):
         sig = []
         clean_args = []
         for arg in self.args:
-            if 'long' not in globals():
-                long = int
-                
             if isinstance(arg, Register):
                 arg.check_arch()
                 if arg.name.startswith('xmm'):
@@ -247,9 +250,16 @@ class Instruction(object):
                 imm = pack_int(arg, int8=True)
                 bits = 8*len(imm)
                 # See if it's possible to pack smaller as uint.
-                if arg >= 0 and arg < 2**(bits//2):
+                if arg > 0:
+                    immu = pack_uint(arg, uint8=True)
+                    ubits = 8*len(immu)
+                else:
+                    immu = None
+                
+                if immu is not None and ubits < bits:
                     # the 'u' flag is a hint that the imm can be packed 
-                    # smaller using uint.
+                    # smaller using uint. This will only be used if no modes
+                    # support a larger imm.
                     sig.append('imm%du' % bits)                
                 else:
                     sig.append('imm%d' % bits)
@@ -316,7 +326,7 @@ class Instruction(object):
                 self._use_sig = mode
                 self._mode = modes[mode]
                 return
-            elif isinstance(usemode, int):
+            elif usemode is not False:
                 if backup_mode is None or backup_mode[0] < usemode:
                     backup_mode = (usemode, mode)
         
@@ -494,8 +504,6 @@ class Instruction(object):
             rm: register or pointer to use in the r/m field of a ModR/M byte
             imm: immediate string
         """
-        if 'long' not in globals():
-            long = int
         clean_args = self.clean_args
         operand_enc = self.operand_enc
         use_sig = self.use_sig
