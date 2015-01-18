@@ -146,7 +146,10 @@ def as_code_cached(asm, quiet, check_invalid_reg):
     key = (asm, check_invalid_reg)
     if _as_code_cache is None:
         if os.path.exists(cachefile):
-            _as_code_cache = pickle.load(open(cachefile, 'rb'))
+            if sys.version_info.major == 2:
+                _as_code_cache = pickle.load(open(cachefile, 'rb'))
+            else:
+                _as_code_cache = pickle.load(open(cachefile, 'rb'), fix_imports=True)
         else:
             _as_code_cache = {'__counter__': 0}
     if key not in _as_code_cache:
@@ -159,7 +162,10 @@ def as_code_cached(asm, quiet, check_invalid_reg):
             cnt = (_as_code_cache['__counter__'] + 1) % 20
             _as_code_cache['__counter__'] = cnt
             if cnt == 0:
-                pk = pickle.dumps(_as_code_cache)
+                if sys.version_info.major == 2:
+                    pk = pickle.dumps(_as_code_cache, protocol=0)
+                else:
+                    pk = pickle.dumps(_as_code_cache, protocol=0, fix_imports=True)
                 open(cachefile, 'wb').write(pk)
     ok, output = _as_code_cache[key]
     if ok:
