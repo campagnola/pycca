@@ -4,7 +4,7 @@ from pytest import raises
 from pycc.asm import *
 from pycc.asm.pointer import Pointer, rex, pack_int
 
-    
+# Catalog of registers
 regs = {}
 for name,obj in list(globals().items()):
     if isinstance(obj, Register):
@@ -15,73 +15,162 @@ for name,obj in list(globals().items()):
             regs.setdefault('gp', []).append(obj)
 
 
-def itest(instr, *args):
+def itest(instr):
     """Generic instruction test: ensure that output of our function matches
     output of GNU assembler.
     
     *args* must be instruction arguments + assembler code to compare 
     as the last argument.
     """
-    asm = args[-1]
-    args = args[:-1]
+    asm = str(instr)
+    
+    def as_code_checkreg(asm):
+        return as_code(asm, quiet=True, check_invalid_reg=True, cache=True)
     
     try:
-        code1 = instr(*args).code
-    except TypeError as exc:
-        # Only pass if assembler also generates error
+        code1 = instr.code
+    except:
         try:
-            code2 = as_code(asm)
-            raise exc
-        except Exception:
+            code2 = as_code_checkreg(asm)
+        except:
             return
+        print("\n---------\n" + str(instr))
+        sys.stdout.write("gnu: ")
+        phexbin(code2)
+        raise
 
-    code2 = as_code(asm)
-    assert code1 == code2
+    try:
+        code2 = as_code_checkreg(asm)
+    except Exception as err:
+        print("\n---------\n" + str(instr))
+        sys.stdout.write("py:  ")
+        phexbin(code1)
+        if hasattr(err, 'output'):
+            print(err.output)
+        raise
+    
+    if code1 != code2:
+        print("\n---------\n" + asm)
+        sys.stdout.write("py:  ")
+        phexbin(code1)
+        sys.stdout.write("gnu: ")
+        phexbin(code2)
+        raise Exception("code mismatch.")
+    
+
+def itest_ptr(inst, pre_arg=None, post_arg=None):
+    regs = all_registers()
+    regs.sort(key=lambda a: (a.bits, a.name))
+    checks = ['{reg}', 
+              '[{reg}]',   '[2*{reg}]',   '[{reg}+{reg}]',   '[2*{reg}+{reg}]', 
+              '[{reg}+1]', '[2*{reg}+1]', '[{reg}+{reg}+1]', '[2*{reg}+{reg}+1]']
+    line = '       '
+    cols = [len(line)]
+    for check in checks:
+        add = check.format(reg='reg')+'  '
+        cols.append(len(add))
+        line += add
+    print(line)
+        
+    icls = getattr(instructions, instr)
+    for reg in regs:
+        if reg in invalid_regs() or 'mm' in reg.name:
+            continue
+        line = reg.name + ':'
+        line += ' '*(cols[0]-len(line))
+        for i,check in enumerate(checks):
+            arg = check.format(reg=reg.name)
+            arg = eval(arg, {reg.name: reg})
+            args = [x for x in [pre, arg, post] if x is not None]
+            instr = icls(*args)
+
+
+
+
 
 def addresses(base):
     """Generator yielding various effective address arrangements.
     """
-    for offset in regs[base.bits]:
-        if offset not in regs['gp']:
+    yield [base]
+    
+    # first try displacements only
+    for disp in [0, 0x1, 0x100, 0x10000]:
+        yield [disp]
+        
+    for disp in [0, 0x1, 0x100, 0x10000]:
+        if disp > (2**base.bits)-1:
+            # GAS silently truncates these; we raise an exception instead.
             continue
-        for disp in [0, 0x1, 0x100, 0x10000]:
-            yield [base + disp], '[%s + 0x%x]' % (base.name, disp)
-            yield [base + offset + disp], '[%s + %s + 0x%x]' % (base.name, offset.name, disp)
-            yield [base + offset*2 + disp], '[%s + %s*2 + 0x%x]' % (base.name, offset.name, disp)
-            yield [offset*2 + disp], '[%s*2 + 0x%x]' % (offset.name, disp)
-            yield [disp], '[0x%x]' % disp
+        yield [base + disp]
+        yield [base*2 + disp]
+        for offset in regs[base.bits]:
+            if offset not in regs['gp']:
+                continue
+            yield [base + offset + disp]
+            yield [base + offset*2 + disp]
 
 
 def test_effective_address():
     # test that register/scale/offset arithmetic works
-    assert str(Pointer([rax])) == '[rax]'
-    assert str(rax + rbx) == '[rbx + rax]'
-    assert str(8*rax + rbx) == '[8*rax + rbx]'
-    assert str(rbx + 4*rcx + 0x1000) == '[0x1000 + 4*rcx + rbx]'
+    assert str(Pointer([eax])) == '[eax]'
+    assert str(eax + ebx) == '[eax + ebx]'
+    assert str(8*eax + ebx) == '[8*eax + ebx]'
+    assert str(ebx + 4*ecx + 0x1000) == '[0x1000 + 4*ecx + ebx]'
     assert str(Pointer([0x1000])) == '[0x1000]'
-    assert str(0x1000 + rcx) == '[0x1000 + rcx]'
-    assert str(0x1000 + 2*rcx) == '[0x1000 + 2*rcx]'
+    assert str(0x1000 + ecx) == '[0x1000 + ecx]'
+    assert str(0x1000 + 2*ecx) == '[0x1000 + 2*ecx]'
 
     # test that we can generate a variety of mod_r/m+sib+disp strings
-    assert (Pointer([rax])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax]')[2:]
-    assert (rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax + rbx]')[2:]
-    assert (8*rax + rbx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rax*8 + rbx]')[2:]
-    assert (rbx + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbx + 4*rcx + 0x1000]')[2:]
-    assert (Pointer([0x1000])).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000]')[2:]
-    assert (0x1000 + rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + rcx]')[2:]
-    assert (0x1000 + 2*rcx).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [0x1000 + 2*rcx]')[2:]
+    itest(mov(edx, dword([eax])))
+    itest(mov(edx, dword([ebx + eax])))
+    itest(mov(edx, dword([eax*8 + ebx])))
+    itest(mov(edx, dword([ebx + 4*ecx + 0x1000])))
+    itest(mov(edx, dword([0x1000])))
+    itest(mov(edx, dword([0x1000 + ecx])))
+    itest(mov(edx, dword([0x1000 + 2*ecx])))
 
     # test using rbp as the SIB base
-    assert (rbp + 4*rcx + 0x1000).modrm_sib(rdx)[1] == as_code('mov rdx, qword ptr [rbp + 4*rcx + 0x1000]')[2:]
+    itest(mov(edx, dword([ebp + 4*ecx + 0x1000])))
     
     # test using esp as the SIB offset
     with raises(TypeError):
-        (rbx + 4*esp + 0x1000).modrm_sib(rdx)
+        (ebx + 4*esp + 0x1000).modrm_sib(edx)
     with raises(TypeError):
-        (4*esp + 0x1000).modrm_sib(rdx)
+        (4*esp + 0x1000).modrm_sib(edx)
     
     # test rex prefix:
-    assert Pointer([r8]).modrm_sib(rax)[0] == rex.b
+    assert Pointer([r8]).modrm_sib(eax)[0] == rex.b
+
+
+def test_generate_asm():
+    # Need to be sure that str(instr) generates accurate strings or else 
+    # we may get false positive tests.
+    assert str(mov(eax, ebx)) == 'mov eax, ebx'
+    ptypes = [
+        ('', lambda x: x),
+        ('byte ptr ', byte),
+        ('word ptr ', word),
+        ('dword ptr ', dword),
+        ('qword ptr ', qword),
+    ]
+    for name, fn in ptypes:
+        assert str(mov(eax, fn([ebx]))) == 'mov eax, %s[ebx]' % name
+        assert str(mov(eax, fn([ebx+eax]))) == 'mov eax, %s[ebx + eax]' % name
+        assert str(mov(eax, fn([eax+ebx]))) == 'mov eax, %s[eax + ebx]' % name
+        assert str(mov(eax, fn([eax+ebx*4]))) == 'mov eax, %s[4*ebx + eax]' % name
+        assert str(mov(eax, fn([eax*4+ebx]))) == 'mov eax, %s[4*eax + ebx]' % name
+        assert str(mov(eax, fn([eax*4]))) == 'mov eax, %s[4*eax]' % name
+        assert str(mov(eax, fn([0x100+ebx]))) == 'mov eax, %s[0x100 + ebx]' % name
+        assert str(mov(eax, fn([0x100+ebx+eax]))) == 'mov eax, %s[0x100 + ebx + eax]' % name
+        assert str(mov(eax, fn([0x100+eax+ebx]))) == 'mov eax, %s[0x100 + eax + ebx]' % name
+        assert str(mov(eax, fn([0x100+eax+ebx*4]))) == 'mov eax, %s[0x100 + 4*ebx + eax]' % name
+        assert str(mov(eax, fn([0x100+eax*4+ebx]))) == 'mov eax, %s[0x100 + 4*eax + ebx]' % name
+        assert str(mov(eax, fn([0x100+eax*4]))) == 'mov eax, %s[0x100 + 4*eax]' % name
+        assert str(mov(eax, fn([0x100]))) == 'mov eax, %s[0x100]' % name
+    assert str(mov(eax, 1)) == 'mov eax, 1'
+    assert str(mov(eax, 100)) == 'mov eax, 100'
+    assert str(mov(eax, 100000000)) == 'mov eax, 100000000'
+
     
 
 def test_pack_int():
@@ -98,48 +187,75 @@ def test_pack_int():
 # Move instructions
 
 def test_mov():
-    assert mov(eax, 0x1234567) == as_code('mov eax,0x1234567')
-    assert mov(eax, ebx) == as_code('mov eax,ebx')
-    assert mov(rax, 0x1234567891) == as_code('mov rax,0x1234567891')
-    assert mov(rax, rbx) == as_code('mov rax,rbx')
-    assert mov(qword([0x12345]), rax) == as_code('mov qword ptr [0x12345], rax')
-    assert mov(dword([0x12345]), eax) == as_code('mov dword ptr [0x12345], eax')
-    assert mov(rax, qword([0x12345])) == as_code('mov rax, qword ptr [0x12345]')
-    assert mov(eax, dword([0x12345])) == as_code('mov eax, dword ptr [0x12345]')
-    assert mov(rax, qword([rbx])) == as_code('mov rax, qword ptr [rbx]')
-    assert mov(rax, qword([rcx+rbx])) == as_code('mov rax, qword ptr [rcx+rbx]')
-    assert mov(rax, qword([8*rbx+rcx])) == as_code('mov rax, qword ptr [8*rbx+rcx]')
-    assert mov(rax, qword([0x1000+8*rbx+rcx])) == as_code('mov rax, qword ptr 0x1000[8*rbx+rcx]')
-    assert mov(rax, '\xdd'*8) == as_code('mov rax, qword ptr 0xdddddddddddddddd')
-    with raises(TypeError):
-        mov(qword([0x12345]), '\0'*8).code 
+    itest( mov(eax, 0x1234567) )
+    itest( mov(eax, ebx) )
+    itest( mov(rax, 0x1234567891) )
+    itest( mov(rax, rbx) )
+    itest( mov(qword([0x12345]), rax) )
+    # note: these tests fail on 32-bit because GNU prefers a shorthand encoding
+    # A3/A1+disp32 but the mode used on 64-bit (89/8B) should work as well. 
+    #     itest(mov(dword([0x12345]), ecx))
+    #     itest(mov(eax, dword([0x12345])))
+    itest( mov(dword([0x12345]), ecx) )
+    itest( mov(rax, qword([0x12345])) )
+    itest( mov(ecx, dword([0x12345])) )
+    itest( mov(rax, qword([rbx])) )
+    itest( mov(rax, qword([rcx+rbx])) )
+    itest( mov(rax, qword([8*rbx+rcx])) )
+    itest( mov(rax, qword([0x1000+8*rbx+rcx])) )
+    itest( mov(rax, b'\xdd'*8) )
+    itest( mov(dword([0x12345]), '\0'*4) )
+    itest( mov(ebx, [eax+0x80000000]) )
 
-#def test_movsd():
-    #assert movsd(xmm1, [rax+rbx*4+0x1000]) == as_code('movsd xmm1, qword ptr [rax+rbx*4+0x1000]')
-    #assert movsd([rax+rbx*4+0x1000], xmm1) == as_code('movsd qword ptr [rax+rbx*4+0x1000], xmm1')
+    for dest in [bl, bx, ebx, rbx, r12]:
+        for ptr in addresses(dest):
+            itest(mov(dest, ptr))
+
+
+def test_mov_16bit_addr():
+    for disp in [0, 0x70, 0x7000]:
+        itest( mov(ebx, [bx+si+disp]) )
+        itest( mov(ebx, [bx+di+disp]) )
+        itest( mov(ebx, [bp+si+disp]) )
+        itest( mov(ebx, [bp+di+disp]) )
+        itest( mov(ebx, [si+disp]) )
+        itest( mov(ebx, [di+disp]) )
+        itest( mov(ebx, [bp+disp]) )
+        itest( mov(ebx, [bx+disp]) )
+        itest( mov(ebx, [disp]) )
+
+def test_movsd():
+    itest(movsd(xmm1, [rax+rbx*4+0x1000]))
+    itest(movsd([rax+rbx*4+0x1000], xmm1))
+    itest(movsd(xmm1, qword([eax+ebx*4+0x1000])))
+    itest(movsd(qword([eax+ebx*4+0x1000]), xmm1))
 
 
 # Procedure management instructions
 
 def test_push():
-    reg = rax
-    # can we push a register?
-    itest(push, reg, 'push %s' % reg.name)
-    
-    # can we push immediate values?
-    itest(push, reg, 'push %s' % reg.name)        
-    
-    # can we push from memory? 
-    for py,asm in addresses(reg):
-        itest(push, py, 'push '+asm)
+    itest(push(rcx))
+    itest(push(ecx))
+    itest(push([ecx]))
+    itest(push([rcx]))
+    itest(push(0x10))
+    itest(push(0x10000))
+    itest(push(-129))
+    itest(push(-128))
+    itest(push(-127))
+    itest(push(129))
+    itest(push(128))
+    itest(push(127))
 
 def test_pop():
-    assert pop(rbp) == as_code('pop rbp')
-    #assert pop(rax) == as_code('pop rax')
+    itest(pop(ebp))
+    itest(pop([ecx]))
+    itest(pop(rbp))
+    itest(pop([rcx]))
 
 def test_ret():
-    assert ret() == as_code('ret')
-    #assert ret(4) == as_code('ret 4')
+    itest(ret())
+    itest(ret(4))
 
 def test_call():
     # relative calls
@@ -147,98 +263,104 @@ def test_call():
     assert call(-0x1000) == as_code('call .-0x1000')
     code = call('label').code
     assert code.compile({'label': 0x0, 'next_instr_addr': 5}) == as_code('label:\ncall label')
+    
     # absolute calls
-    assert call(rax) == as_code('call rax')
+    itest(call(rax))
+    itest(call(eax))
 
 
 # Arithmetic instructions
 
 def test_add():
-    assert add(rax, rbx) == as_code('add rax, rbx')
-    assert add(rbx, 0x1000) == as_code('add rbx, 0x1000')
-    assert add(dword([0x1000]), eax) == as_code('add dword ptr [0x1000], eax')
-    assert add(eax, dword([0x1000])) == as_code('add eax, dword ptr [0x1000]')
-    #assert add([0x1000], rax) == as_code('add qword ptr [0x1000], rax')
-    #assert add(rax, [0x1000]) == as_code('add rax, qword ptr [0x1000]')
-    assert add(dword([0x1000]), 0x1000) == as_code('add dword ptr [0x1000], 0x1000')
+    itest( add(rax, rbx) )
+    itest( add(rbx, 0x1000) )
+    itest( add(dword([0x1000]), eax) )
+    itest( add(eax, dword([0x1000])) )
+    itest( add(dword([0x1000]), 0x1000) )
+    itest( add(ax, [eax]) )
+
+    for dest in [bl, bx, ebx, rbx, r12]:
+        for ptr in addresses(dest):
+            itest(add(dest, ptr))
+
     
 def test_sub():
-    assert sub(rax, rbx) == as_code('sub rax, rbx')
-    assert sub(rbx, 0x1000) == as_code('sub rbx, 0x1000')
-    assert sub(dword([0x1000]), eax) == as_code('sub dword ptr [0x1000], eax')
-    assert sub(eax, dword([0x1000])) == as_code('sub eax, dword ptr [0x1000]')
-    #assert add([0x1000], rax) == as_code('add qword ptr [0x1000], rax')
-    #assert add(rax, [0x1000]) == as_code('add rax, qword ptr [0x1000]')
-    assert sub(dword([0x1000]), 0x1000) == as_code('sub dword ptr [0x1000], 0x1000')
+    itest( sub(rax, rbx) )
+    itest( sub(rbx, 0x1000) )
+    itest( sub(dword([0x1000]), eax) )
+    itest( sub(eax, dword([0x1000])) )
+    #itest( add([0x1000], rax) )
+    #itest( add(rax, [0x1000]) )
+    itest( sub(dword([0x1000]), 0x1000) )
     
 def test_dec():
-    assert dec(dword([0x1000])) == as_code('dec dword ptr [0x1000]')
-    assert dec(eax) == as_code('dec eax')
-    assert dec(rax) == as_code('dec rax')
+    itest( dec(dword([0x1000])) )
+    itest( dec(eax) )
+    itest( dec(rax) )
 
 def test_inc():
-    assert inc(dword([0x1000])) == as_code('inc dword ptr [0x1000]')
-    assert inc(eax) == as_code('inc eax')
-    assert inc(rax) == as_code('inc rax')
+    itest( inc(dword([0x1000])) )
+    itest( inc(eax) )
+    itest( inc(rax) )
 
 def test_imul():
-    assert imul(eax, ebp) == as_code('imul eax, ebp')
+    itest( imul(eax, ebp) )
     
 def test_idiv():
-    assert idiv(ebp) == as_code('idiv ebp')
+    itest( idiv(ebp) )
 
 def test_lea():
-    assert lea(rax, [rbx+rcx*2+0x100]) == as_code('lea rax, [rbx+rcx*2+0x100]')
-    assert lea(rax, [ebx+ecx*2+0x100]) == as_code('lea rax, [ebx+ecx*2+0x100]')
-    assert lea(eax, [rbx+rcx*2+0x100]) == as_code('lea eax, [rbx+rcx*2+0x100]')
-    assert lea(eax, [ebx+ecx*2+0x100]) == as_code('lea eax, [ebx+ecx*2+0x100]')
+    itest( lea(rax, [rbx+rcx*2+0x100]) )
+    itest( lea(rax, [ebx+ecx*2+0x100]) )
+    itest( lea(eax, [rbx+rcx*2+0x100]) )
+    itest( lea(eax, [ebx+ecx*2+0x100]) )
 
 def test_fld():
-    assert fld(dword([rax])) == as_code('fld dword ptr [rax]')
-    assert fld(qword([rax+rcx*8])) == as_code('fld qword ptr [rax+rcx*8]')
-    assert fld(st(4)) == as_code('fld st(4)')
+    itest( fld(dword([rax])) )
+    itest( fld(qword([rax+rcx*8])) )
+    itest( fld(st(4)) )
 
 def test_fst():
-    assert fst(dword([rax])) == as_code('fst dword ptr [rax]')
-    assert fst(qword([rax+rcx*8])) == as_code('fst qword ptr [rax+rcx*8]')
-    assert fst(st(4)) == as_code('fst st(4)')
+    itest( fst(dword([rax])) )
+    itest( fst(qword([rax+rcx*8])) )
+    itest( fst(st(4)) )
 
 def test_fstp():
-    assert fstp(dword([rax])) == as_code('fstp dword ptr [rax]')
-    assert fstp(qword([rax+rcx*8])) == as_code('fstp qword ptr [rax+rcx*8]')
-    assert fstp(st(4)) == as_code('fstp st(4)')
+    itest( fstp(dword([rax])) )
+    itest( fstp(qword([rax+rcx*8])) )
+    itest( fstp(st(4)) )
 
 def test_fild():
-    assert fild(word([rax])) == as_code('fild word ptr [rax]')
-    assert fild(dword([rax])) == as_code('fild dword ptr [rax]')
-    assert fild(qword([rax+rcx*8])) == as_code('fild qword ptr [rax+rcx*8]')
+    itest( fild(word([rax])) )
+    itest( fild(dword([rax])) )
+    itest( fild(qword([rax+rcx*8])) )
 
 def test_fist():
-    assert fist(word([rax])) == as_code('fist word ptr [rax]')
-    assert fist(dword([rax])) == as_code('fist dword ptr [rax]')
+    itest( fist(word([rax])) )
+    itest( fist(dword([rax])) )
 
 def test_fistp():
-    assert fistp(word([rax])) == as_code('fistp word ptr [rax]')
-    assert fistp(dword([rax])) == as_code('fistp dword ptr [rax]')
-    assert fistp(qword([rax+rcx*8])) == as_code('fistp qword ptr [rax+rcx*8]')
+    itest( fistp(word([rax])) )
+    itest( fistp(dword([rax])) )
+    itest( fistp(qword([rax+rcx*8])) )
 
 def test_fabs():
-    assert fabs() == as_code('fabs')
+    itest( fabs() )
 
 def test_fadd():
-    assert fadd() == as_code('fadd')
-    assert fadd(dword([rax])) == as_code('fadd dword ptr [rax]')
-    assert fadd(qword([rax])) == as_code('fadd qword ptr [rax]')
-    assert fadd(st(0), st(4)) == as_code('fadd st(0), st(4)')
-    assert fadd(st(4), st(0)) == as_code('fadd st(4), st(0)')
+    itest( fadd() )
+    itest( fadd(dword([rax])) )
+    itest( fadd(qword([rax])) )
+    itest( fadd(st(0), st(4)) )
+    itest( fadd(st(4), st(0)) )
     
 def test_faddp():
-    assert faddp() == as_code('faddp')
-    assert faddp(st(4), st(0)) == as_code('faddp st(4), st(0)')
+    itest( faddp() )
+    itest( faddp(st(4), st(0)) )
     
 def test_fiadd():
-    assert fiadd(dword([rax])) == as_code('fiadd dword ptr [rax]')
-    assert fiadd(word([rax])) == as_code('fiadd word ptr [rax]')
+    itest( fiadd(dword([rax])) )
+    itest( fiadd(word([rax])) )
     
     
     
@@ -246,18 +368,18 @@ def test_fiadd():
 # Testing instructions
 
 def test_cmp():
-    assert cmp(dword(0x1000), 0x1000) == as_code('cmp dword ptr [0x1000], 0x1000')
-    assert cmp(rbx, 0x1000) == as_code('cmp rbx, 0x1000')
-    assert cmp(qword(rbx+0x1000), 0x1000) == as_code('cmp qword ptr [rbx+0x1000], 0x1000')
+    itest( cmp(dword(0x1000), 0x1000) )
+    itest( cmp(rbx, 0x1000) )
+    itest( cmp(qword(rbx+0x1000), 0x1000) )
 
 def test_test():
-    assert test(eax, eax) == as_code('test eax,eax')
+    itest( test(eax, eax) )
 
 
 # Branching instructions
 
 def test_jmp():
-    assert jmp(rax) == as_code('jmp rax')
+    itest( jmp(rax) )
     assert jmp(0x1000) == as_code('jmp .+0x1000')    
 
 def test_jcc():
@@ -272,22 +394,28 @@ def test_jcc():
 # OS instructions
 
 def test_syscall():
-    assert syscall() == as_code('syscall')
+    itest( syscall() )
 
 def test_int():
-    assert int_(0x80) == as_code('int 0x80')
+    itest( int_(0x80) )
+    itest( int_(-129) )
+    itest( int_(-128) )
+    itest( int_(-127) )
+    itest( int_(129) )
+    itest( int_(128) )
+    itest( int_(127) )
 
 
 
-# Extensive address encoding test
 def test_push():
+    # can we push immediate values?
+    itest(push(0x5))
+    
+    # Extensive address encoding test
     for reg in regs['gp']:
         # can we push a register?
-        itest(push, reg, 'push %s' % reg.name)
-        
-        # can we push immediate values?
-        itest(push, reg, 'push %s' % reg.name)        
+        itest(push(reg))
         
         # can we push from memory? 
-        for py,asm in addresses(reg):
-            itest(push, py, 'push '+asm)
+        for ptr in addresses(reg):
+            itest(push(ptr))

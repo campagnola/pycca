@@ -52,17 +52,24 @@ Status: beta
   | Intel-64  | Python 2.7 |    X    |    X    |         |
   |           | Python 3.4 |    X    |         |    X    |
 
-* Unit tests pass on 64-bit Linux under python 2.7 and 3.4
+* Unit tests pass on 64-bit and 32-bit Linux under python 2.7 and 3.4
 
 
 Roadmap
 -------
 
-* Version 0.2: Passing unit tests on 32- and 64-bit linux, python 2.7 & 3.4.
 * Version 0.3: Basic C compiler (based on pre-parsed data structures) with 
   support for 32- and 64-bit calling conventions on Linux, OSX, and Windows.
 * Version 0.4: Parser supporting a subset of C language including functions,
   control flow, and basic data types. 
+
+
+Differences with GNU-AS
+-----------------------
+
+* GAS quietly ignores undefined symbols, treating them as null pointers.
+  PyCC will raise an exception.
+* GAS quietly truncates displacement values; PyCC will raise an exception.
 
 
 Todo

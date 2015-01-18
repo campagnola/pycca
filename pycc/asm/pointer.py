@@ -4,6 +4,7 @@ import struct
 
 from .register import *
 from . import ARCH
+from .util import long
 
 #   Instruction Prefixes
 #----------------------------------------
@@ -110,7 +111,8 @@ def mod_reg_rm(mod, reg, rm):
         if rm.rex:
             rex_byt |= rex.b
         rm = rm.val
-    return rex_byt, bytes(bytearray([mod_vals[mod] | reg << 3 | rm]))
+    return rex_byt, bytes(bytearray([mod_vals[mod] | reg << 3 | rm]))    
+    
 
 
 
@@ -137,12 +139,16 @@ def mk_sib(byts, offset, base):
     else:
         if offset.rex:
             rex_byt |= rex.x
+        if offset.bits < 32:
+            raise Exception("Invalid register '%s' for SIB address" % offset.name)
     
     if base == 'disp':
         base = rbp
     else:
         if base.rex:
             rex_byt |= rex.b
+        if base.bits < 32:
+            raise Exception("Invalid register '%s' for SIB address" % base.name)
     
     return rex_byt, bytes(bytearray([byts << 6 | offset.val << 3 | base.val]))
 
@@ -181,74 +187,26 @@ def mk_sib(byts, offset, base):
 #
 
 
-class ModRmSib(object):
-    """Container for mod_reg_rm + sib + displacement string and related
-    information.
-    
-    The .code property is the compiled byte code
-    The .argtypes property is a description of the input types:
-        'rr' => both inputs are Registers
-        'rm' => a is Register, b is Pointer
-        'mr' => a is Pointer, b is Register
-        'xr' => a is opcode extension, b is register 
-        'xp' => a is opcode extension, b is Pointer 
-    The .argbits property is a tuple (a.bits, b.bits)
-    The .bits property gives the maximum bit depth of any register
-    The .rex property gives the REX byte required to encode the instruction
-    """
-    def __init__(self, a, b):
-        self.a = a
-        self.b = b
-        
-        self.argtypes = ''
-        for op in (a, b):
-            if isinstance(op, Register):
-                self.argtypes += 'r'
-            elif isinstance(op, int) and op < 8:
-                self.argtypes += 'x'
-            elif isinstance(op, Pointer):
-                self.argtypes += 'm'
-            else:
-                raise Exception("Arguments must be Register, Pointer, or "
-                                "opcode extension.")
-        
-        self.rex = 0
-        if self.argtypes in ('rr', 'xr'):
-            rex_byt, self.code = mod_reg_rm('dir', a, b)
-            if self.argtypes != 'xr' and a.rex:
-                self.rex |= rex.r
-            if b.rex: 
-                self.rex |= rex.b
-        elif self.argtypes == 'mr':
-            rex_byt, self.code = a.modrm_sib(b)
-            self.rex |= rex_byt
-        elif self.argtypes in ('rm', 'xm'):
-            rex_byt, self.code = b.modrm_sib(a)
-            self.rex |= rex_byt
-        else:
-            raise TypeError('Invalid argument types: %s, %s' % (type(a), type(b)))
-
-        if hasattr(a, 'bits'):
-            self.argbits = (a.bits, b.bits)
-            self.bits = max(self.argbits)
-        else:
-            self.argbits = (None, b.bits)
-            self.bits = b.bits
-
-        assert isinstance(self.code, bytes)
-
-
-def pack_int(x, int8=False, int16=True, int32=True, int64=True):
+def pack_int(x, int8=False, int16=True, int32=True, int64=True, try_uint=False):
     """Pack a signed integer into the smallest format possible.
+    
+    If try_uint is True, then attempt unsigned packing if signed packing fails.
     """
-    modes = ['bhiq'[i] for i,m in enumerate([int8, int16, int32, int64]) if m]
-    for mode in modes:
-        try:
-            return struct.pack(mode, x)
-        except struct.error:
-            if mode == modes[-1]:
-                raise
-            # otherwise, try the next mode
+    try:
+        modes = ['bhiq'[i] for i,m in enumerate([int8, int16, int32, int64]) if m]
+        for mode in modes:
+            try:
+                return struct.pack(mode, x)
+            except struct.error:
+                if mode == modes[-1]:
+                    raise
+                # otherwise, try the next mode
+    except struct.error:
+        if try_uint:
+            return pack_uint(x, uint8=int8, uint16=int16, uint32=int32, uint64=int64)
+        else:
+            raise
+
 
 def pack_uint(x, uint8=False, uint16=True, uint32=True, uint64=True):
     """Pack an unsigned integer into the smallest format possible.
@@ -283,7 +241,7 @@ class Pointer(object):
             arg = reg1[0]
             if isinstance(arg, Register):
                 reg1 = arg
-            elif isinstance(arg, int):
+            elif isinstance(arg, (int, long)):
                 reg1 = None
                 disp = arg
             elif isinstance(arg, Pointer):
@@ -304,21 +262,6 @@ class Pointer(object):
     def copy(self):
         return Pointer(self.reg1, self.scale, self.reg2, self.disp)
 
-    #@property
-    #def addrsize(self):
-        #"""Maximum number of bits for encoded address size.
-        #"""
-        #regs = []
-        #if self.reg1 is not None:
-            #regs.append(self.reg1.bits)
-        #if self.reg2 is not None:
-            #regs.append(self.reg2.bits)
-        #if self.disp is not None:
-            #if len(regs) == 0:
-                
-                #return ARCH
-            #regs.append(32)
-        #return max(regs)
     @property
     def prefix(self):
         """Return prefix string required when encoding this address.
@@ -340,15 +283,18 @@ class Pointer(object):
     def bits(self):
         """The size of the data referenced by this pointer.
         """
-        if self._bits is None:
-            return ARCH
-        else:
-            return self._bits
+        return self._bits
         
     @bits.setter
     def bits(self, b):
         self._bits = b
 
+    def check_arch(self):
+        if self.reg1 is not None:
+            self.reg1.check_arch()
+        if self.reg2 is not None:
+            self.reg2.check_arch()
+    
     def __add__(self, x):
         y = self.copy()
         if isinstance(x, Register):
@@ -359,7 +305,7 @@ class Pointer(object):
             else:
                 raise TypeError("Pointer cannot incorporate more than"
                                 " two registers.")
-        elif isinstance(x, int):
+        elif isinstance(x, (int, long)):
             if y.disp is None:
                 y.disp = x
             else:
@@ -430,13 +376,26 @@ class Pointer(object):
         for r in (self.reg1, self.reg2):
             if r is not None and r.bits < ARCH//2:
                 raise TypeError("Invalid register for pointer: %s" % r.name)
+            
+        # sanity checks
+        # (note these should not go in init to facilitate testing)
+        if self.reg1 is not None and self.reg2 is not None:
+            if self.reg1.bits != self.reg2.bits:
+                raise TypeError('Cannot compile pointer from registers of '
+                                'different size: %s, %s' % (self.reg1, self.reg2))
+
+        if ((self.reg1 is not None and self.reg1.bits == 16) or
+            (self.reg2 is not None and self.reg2.bits == 16)):
+            # branch to 16-bit addressing mode
+            return self.modrm16(reg)
 
         # do some simple displacement parsing
         if self.disp in (None, 0):
             disp = b''
             mod = 'ind'
         else:
-            disp = pack_int(self.disp, int8=True, int16=False, int32=True, int64=False)
+            disp = pack_int(self.disp, try_uint=True, int8=True, int16=False, int32=True, int64=False)
+                
             mod = {1: 'ind8', 4: 'ind32'}[len(disp)]
 
         if self.scale in (None, 0):
@@ -445,12 +404,18 @@ class Pointer(object):
             
             if len(regs) == 0:
                 # displacement only
-                if self.disp in (None, 0):
+                if self.disp is None:
                     raise TypeError("Cannot encode empty pointer.")
                 disp = struct.pack('i', self.disp)
-                mrex, modrm = mod_reg_rm('ind', reg, 'sib')
-                srex, sib = mk_sib(0, None, 'disp')
-                return mrex|srex, modrm + sib + disp
+                # For some reason, GNU prefers to encode [disp] pointers
+                # two different ways on 32/64 bit arches.
+                if ARCH == 32:  
+                    mrex, modrm = mod_reg_rm('ind', reg, 'disp')
+                    return mrex, modrm + disp
+                else:
+                    mrex, modrm = mod_reg_rm('ind', reg, 'sib')
+                    srex, sib = mk_sib(0, None, 'disp')
+                    return mrex|srex, modrm + sib + disp
             elif len(regs) == 1:
                 # one register; put this wherever is most convenient.
                 if regs[0].val == 4:
@@ -467,8 +432,9 @@ class Pointer(object):
                     return mrex, modrm + disp
             else:
                 # two registers; swap places if necessary.
-                if regs[0] in (esp, rsp): # seems to be unnecessary for r12d
-                    if regs[1] in (esp, rsp):
+                regs.reverse()  # just to match GNU ordering
+                if regs[0] in (sp, esp, rsp): # seems to be unnecessary for r12d
+                    if regs[1] in (sp, esp, rsp):
                         raise TypeError("Cannot encode registers in SIB: %s+%s" 
                                         % (regs[0].name, regs[1].name))
                     # don't put *sp registers in offset
@@ -491,7 +457,7 @@ class Pointer(object):
             # sanity checks
             if offset is None:
                 raise TypeError("Cannot have SIB scale without offset register.")
-            if offset.val == 4:
+            if offset.val == 4 and not offset.rex:
                 raise TypeError("Cannot encode register %s as SIB offset." % offset.name)
             #if base is not None and base.val == 5:
                 #raise TypeError("Cannot encode register %s as SIB base." % base.name)
@@ -506,9 +472,53 @@ class Pointer(object):
                 disp = disp + b'\0' * (4-len(disp))
             
             mrex, modrm = mod_reg_rm(mod, reg, 'sib')
-            srex, sib = mk_sib(byts, offset, base)
+            srex, sib = mk_sib(byts, offset, base)            
             return mrex|srex, modrm + sib + disp
                 
+    def modrm16(self, reg):
+        """Generate 16-bit modrm 
+        """
+        if self.scale not in (0, None):
+            raise TypeError("Scale not valid in 16-bit addressing mode.")
+        
+        if isinstance(reg, Register):
+            reg = reg.val
+            
+        regs = [r for r in [self.reg1, self.reg2] if r is not None]
+        regs.sort(key=lambda r: r.name)
+        regs = tuple(regs)
+        rm_vals = {
+            (bx, si): 0b000,
+            (bx, di): 0b001,
+            (bp, si): 0b010,
+            (bp, di): 0b011,
+            (si,):    0b100,
+            (di,):    0b101,
+            (bp,):    0b110,
+            (bx,):    0b111,
+            ():       0b110,  # requires mod=0 and disp16
+        }
+        if regs not in rm_vals:
+            raise TypeError("Invalid 16-bit address '%s'" % str(self))
+        rm = rm_vals[regs]
+        
+        if self.disp in (None, 0):
+            if regs == (bp,):
+                disp = b'\x00'
+                mod = 0b01000000
+            else:
+                disp = b''
+                mod = 0b00000000  # ind
+        else:
+            if regs == ():
+                disp = pack_int(self.disp, try_uint=True, int8=False, int16=True, int32=False, int64=False)
+                mod = 0b00000000
+            else:
+                disp = pack_int(self.disp, try_uint=True, int8=True, int16=True, int32=False, int64=False)
+                mod = {1: 0b01000000, 2: 0b10000000}[len(disp)]  # ind8, ind16
+        
+        modrm = bytes(bytearray([mod | reg << 3 | rm]))    
+        return 0, modrm + disp
         
 
 def qword(ptr):
