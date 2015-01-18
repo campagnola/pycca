@@ -66,6 +66,9 @@ def addresses(base):
         if offset not in regs['gp']:
             continue
         for disp in [0, 0x1, 0x100, 0x10000]:
+            if disp > (2**base.bits)-1:
+                # GAS silently truncates these; we raise an exception instead.
+                continue
             yield [base + disp], '[%s + 0x%x]' % (base.name, disp)
             yield [base + offset + disp], '[%s + %s + 0x%x]' % (base.name, offset.name, disp)
             yield [base + offset*2 + disp], '[%s + %s*2 + 0x%x]' % (base.name, offset.name, disp)
