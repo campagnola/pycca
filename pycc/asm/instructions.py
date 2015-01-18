@@ -521,8 +521,8 @@ class fild(Instruction):
     def generate_code(self):
         # Don't need 66h prefix for this instruction.
         # todo: could this have been deduced from the 'm16int' sig?
-        if '\x66' in self.prefixes:
-            self.prefixes.remove('\x66')
+        if b'\x66' in self.prefixes:
+            self.prefixes.remove(b'\x66')
         Instruction.generate_code(self)
 
 
@@ -548,8 +548,8 @@ class fist(Instruction):
     def generate_code(self):
         # Don't need 66h prefix for this instruction.
         # todo: could this have been deduced from the 'm16int' sig?
-        if '\x66' in self.prefixes:
-            self.prefixes.remove('\x66')
+        if b'\x66' in self.prefixes:
+            self.prefixes.remove(b'\x66')
         Instruction.generate_code(self)
 
 
@@ -576,8 +576,8 @@ class fistp(Instruction):
     def generate_code(self):
         # Don't need 66h prefix for this instruction.
         # todo: could this have been deduced from the 'm16int' sig?
-        if '\x66' in self.prefixes:
-            self.prefixes.remove('\x66')
+        if b'\x66' in self.prefixes:
+            self.prefixes.remove(b'\x66')
         Instruction.generate_code(self)
 
 
@@ -659,8 +659,8 @@ class fiadd(Instruction):
     def generate_code(self):
         # Don't need 66h prefix for this instruction.
         # todo: could this have been deduced from the 'm16int' sig?
-        if '\x66' in self.prefixes:
-            self.prefixes.remove('\x66')
+        if b'\x66' in self.prefixes:
+            self.prefixes.remove(b'\x66')
         Instruction.generate_code(self)
 
 
