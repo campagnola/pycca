@@ -137,12 +137,16 @@ def mk_sib(byts, offset, base):
     else:
         if offset.rex:
             rex_byt |= rex.x
+        if offset.bits < 32:
+            raise Exception("Invalid register '%s' for SIB address" % offset.name)
     
     if base == 'disp':
         base = rbp
     else:
         if base.rex:
             rex_byt |= rex.b
+        if base.bits < 32:
+            raise Exception("Invalid register '%s' for SIB address" % base.name)
     
     return rex_byt, bytes(bytearray([byts << 6 | offset.val << 3 | base.val]))
 
@@ -304,21 +308,6 @@ class Pointer(object):
     def copy(self):
         return Pointer(self.reg1, self.scale, self.reg2, self.disp)
 
-    #@property
-    #def addrsize(self):
-        #"""Maximum number of bits for encoded address size.
-        #"""
-        #regs = []
-        #if self.reg1 is not None:
-            #regs.append(self.reg1.bits)
-        #if self.reg2 is not None:
-            #regs.append(self.reg2.bits)
-        #if self.disp is not None:
-            #if len(regs) == 0:
-                
-                #return ARCH
-            #regs.append(32)
-        #return max(regs)
     @property
     def prefix(self):
         """Return prefix string required when encoding this address.
@@ -340,10 +329,7 @@ class Pointer(object):
     def bits(self):
         """The size of the data referenced by this pointer.
         """
-        if self._bits is None:
-            return ARCH
-        else:
-            return self._bits
+        return self._bits
         
     @bits.setter
     def bits(self, b):
@@ -487,8 +473,8 @@ class Pointer(object):
             else:
                 # two registers; swap places if necessary.
                 regs.reverse()  # just to match GNU ordering
-                if regs[0] in (esp, rsp): # seems to be unnecessary for r12d
-                    if regs[1] in (esp, rsp):
+                if regs[0] in (sp, esp, rsp): # seems to be unnecessary for r12d
+                    if regs[1] in (sp, esp, rsp):
                         raise TypeError("Cannot encode registers in SIB: %s+%s" 
                                         % (regs[0].name, regs[1].name))
                     # don't put *sp registers in offset
@@ -526,7 +512,7 @@ class Pointer(object):
                 disp = disp + b'\0' * (4-len(disp))
             
             mrex, modrm = mod_reg_rm(mod, reg, 'sib')
-            srex, sib = mk_sib(byts, offset, base)
+            srex, sib = mk_sib(byts, offset, base)            
             return mrex|srex, modrm + sib + disp
                 
         

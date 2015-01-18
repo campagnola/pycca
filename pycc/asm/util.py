@@ -190,13 +190,13 @@ def check_valid_pointer(instr='push', pre=None, post=None):
             instr = icls(*args)
             
             try:
-                code = instr.code
+                code1 = instr.code
                 err1 = False
             except:
                 err1 = True
                 
             try:
-                code = as_code(str(instr), quiet=True, check_invalid_reg=True)
+                code2 = as_code(str(instr), quiet=True, check_invalid_reg=True)
                 err2 = False
             except:
                 err2 = True
@@ -208,7 +208,10 @@ def check_valid_pointer(instr='push', pre=None, post=None):
             elif err2:
                 add = 'PY'
             else:
-                add = '+++'
+                if code1 != code2:
+                    add = 'XXX'
+                else:
+                    add = '+++'
             line += add + ' '*(cols[i+1]-len(add))
         print(line)
 

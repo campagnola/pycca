@@ -245,7 +245,10 @@ class Instruction(object):
                     sig.append('r%d' % arg.bits)
             elif isinstance(arg, Pointer):
                 arg.check_arch()
-                sig.append('m%d' % arg.bits)
+                if arg.bits is None:
+                    sig.append('m')
+                else:
+                    sig.append('m%d' % arg.bits)
             elif isinstance(arg, (int, long)):
                 imm = pack_int(arg, int8=True)
                 bits = 8*len(imm)
@@ -370,7 +373,7 @@ class Instruction(object):
         if mtype == 'r':
             return stype == 'r' and mbits == sbits
         elif mtype == 'r/m':
-            return stype in ('r', 'm') and mbits == sbits
+            return stype in ('r', 'm') and (sbits == 0 or mbits == sbits)
         elif mtype == 'imm':
             if stype != 'imm':
                 return False
@@ -386,7 +389,7 @@ class Instruction(object):
         elif mtype == 'm':
             if stype != 'm':
                 return False
-            if mbits > 0 and mbits != sbits:
+            if mbits > 0 and sbits > 0 and mbits != sbits:
                 return False
             return True
         elif mtype == 'xmm':
@@ -525,7 +528,7 @@ class Instruction(object):
                 opcode_reg = arg.val
                 if arg.rex:
                     rex_byt = rex_byt | rex.b
-                if arg.bits == 16:
+                if arg.bits == ARCH // 2 and b'\x66' not in prefixes:
                     prefixes.append(b'\x66')
             elif enc.startswith('ModRM:r/m'):
                 rm = arg
@@ -536,6 +539,8 @@ class Instruction(object):
                     if addrpfx != b'':
                         prefixes.append(addrpfx)  # adds 0x67 prefix if needed
             elif enc.startswith('ModRM:reg'):
+                if arg.bits == ARCH // 2 and b'\x66' not in prefixes:
+                    prefixes.append(b'\x66')
                 reg = arg
             elif enc.startswith('imm'):
                 immsize = int(use_sig[i][3:].rstrip('u'))

@@ -4,6 +4,51 @@ import sys
 
 from . import ARCH
 
+"""
+32-bit mode registers:
+
+- 32-bit general-purpose registers (EAX, EBX, ECX, EDX, ESI, EDI, ESP, or EBP)
+- 16-bit general-purpose registers (AX, BX, CX, DX, SI, DI, SP, or BP)
+- 8-bit general-purpose registers (AH, BH, CH, DH, AL, BL, CL, or DL)
+- segment registers (CS, DS, SS, ES, FS, and GS)
+- EFLAGS register
+- x87 FPU registers (ST0 through ST7, status word, control word, tag word, 
+  data operand pointer, and instruction pointer)
+- MMX registers (MM0 through MM7)
+- XMM registers (XMM0 through XMM7) and the MXCSR register
+- control registers (CR0, CR2, CR3, and CR4) and system table pointer registers
+  (GDTR, LDTR, IDTR, and task register)
+- debug registers (DR0, DR1, DR2, DR3, DR6, and DR7)
+- MSR registers
+
+64-bit mode registers:
+
+- 64-bit general-purpose registers (RAX, RBX, RCX, RDX, RSI, RDI, RSP, RBP, or R8-R15)
+- 32-bit general-purpose registers (EAX, EBX, ECX, EDX, ESI, EDI, ESP, EBP, or R8D-R15D)
+- 16-bit general-purpose registers (AX, BX, CX, DX, SI, DI, SP, BP, or R8W-R15W)
+- 8-bit general-purpose registers: AL, BL, CL, DL, SIL, DIL, SPL, BPL, and 
+  R8L-R15L are available using REX prefixes; AL, BL, CL, DL, AH, BH, CH, DH are
+  available without using REX prefixes.
+- Segment registers (CS, DS, SS, ES, FS, and GS)
+- RFLAGS register
+- x87 FPU registers (ST0 through ST7, status word, control word, tag word, data
+  operand pointer, and instruction pointer)
+- MMX registers (MM0 through MM7)
+- XMM registers (XMM0 through XMM15) and the MXCSR register
+- Control registers (CR0, CR2, CR3, CR4, and CR8) and system table pointer 
+  registers (GDTR, LDTR, IDTR, and task register)
+- Debug registers (DR0, DR1, DR2, DR3, DR6, and DR7)
+- MSR registers
+- RDX:RAX register pair representing a 128-bit operand
+
+
+
+"""
+
+
+
+
+
 #   Register definitions
 #----------------------------------------
 
