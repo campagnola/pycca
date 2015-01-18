@@ -25,7 +25,7 @@ def itest(instr):
     asm = str(instr)
     
     def as_code_checkreg(asm):
-        return as_code(asm, quiet=True, check_invalid_reg=True)
+        return as_code(asm, quiet=True, check_invalid_reg=True, cache=True)
     
     try:
         code1 = instr.code
@@ -62,18 +62,21 @@ def itest(instr):
 def addresses(base):
     """Generator yielding various effective address arrangements.
     """
-    for offset in regs[base.bits]:
-        if offset not in regs['gp']:
+    # first try displacements only
+    for disp in [0, 0x1, 0x100, 0x10000]:
+        yield [disp]
+        
+    for disp in [0, 0x1, 0x100, 0x10000]:
+        if disp > (2**base.bits)-1:
+            # GAS silently truncates these; we raise an exception instead.
             continue
-        for disp in [0, 0x1, 0x100, 0x10000]:
-            if disp > (2**base.bits)-1:
-                # GAS silently truncates these; we raise an exception instead.
+        yield [base + disp]
+        yield [base*2 + disp]
+        for offset in regs[base.bits]:
+            if offset not in regs['gp']:
                 continue
-            yield [base + disp], '[%s + 0x%x]' % (base.name, disp)
-            yield [base + offset + disp], '[%s + %s + 0x%x]' % (base.name, offset.name, disp)
-            yield [base + offset*2 + disp], '[%s + %s*2 + 0x%x]' % (base.name, offset.name, disp)
-            yield [offset*2 + disp], '[%s*2 + 0x%x]' % (offset.name, disp)
-            yield [disp], '[0x%x]' % disp
+            yield [base + offset + disp]
+            yield [base + offset*2 + disp]
 
 
 def test_effective_address():
@@ -373,5 +376,5 @@ def test_push():
         itest(push(reg))
         
         # can we push from memory? 
-        for py,asm in addresses(reg):
-            itest(push(py))
+        for ptr in addresses(reg):
+            itest(push(ptr))

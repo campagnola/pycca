@@ -1,6 +1,6 @@
 # -'- coding: utf-8 -'-
 
-import re, sys, tempfile, subprocess
+import os, re, sys, pickle, tempfile, subprocess
 
 try:
     from __builtin__ import long
@@ -90,11 +90,7 @@ def run_as(asm, quiet=False, check_invalid_reg=False):
     #print asm
     fname = tempfile.mktemp('.s')
     open(fname, 'w').write(asm)
-    if quiet:
-        redir = '2>&1'
-    else:
-        redir = ''
-    cmd = 'as {file} -o {file}.o {redirect} && objdump -d {file}.o; rm -f {file} {file}.o'.format(file=fname, redirect=redir)
+    cmd = 'as {file} -o {file}.o 2>&1 && objdump -d {file}.o; rm -f {file} {file}.o'.format(file=fname)
     #print cmd
     out = subprocess.check_output(cmd, shell=True)
     out = out.decode('ascii').split('\n')
@@ -104,16 +100,29 @@ def run_as(asm, quiet=False, check_invalid_reg=False):
     if not quiet:
         print("--- code: ---")
         print(asm)
+        print("--- output: ---")
+        print('\n'.join(out))
         print("-------------")
-    exc = Exception("Error running 'as' or 'objdump' (see above).")
+        
+    errmsg = re.search(r'Error:\s*(.*)\n', '\n'.join(out))
+    if errmsg is None:
+        errmsg = "Error running 'as' or 'objdump' (see above)."
+    else:
+        errmsg = errmsg.groups()[0]
+    exc = Exception(errmsg)
     exc.asm = asm
     exc.output = '\n'.join(out)
     raise exc
 
 
-def as_code(asm, quiet=False, check_invalid_reg=False):
+def as_code(asm, quiet=False, check_invalid_reg=False, cache=False):
     """Return machine code string for *asm* using gnu as and objdump.
     """
+    # First try returning cached output
+    if cache:
+        return as_code_cached(asm, quiet, check_invalid_reg)
+
+    # execute GAS, return compiled bytecode (or raise exception)
     code = b''
     for line in run_as(asm, quiet=quiet, check_invalid_reg=check_invalid_reg):
         if line.strip() == '':
@@ -127,6 +136,38 @@ def as_code(asm, quiet=False, check_invalid_reg=False):
                 continue
             code += bytearray.fromhex(byt)
     return code
+
+
+_as_code_cache = None
+def as_code_cached(asm, quiet, check_invalid_reg):
+    global _as_code_cache
+    path = os.path.dirname(__file__)
+    cachefile = os.path.join(path, 'gnu_as_cache.pk')
+    key = (asm, check_invalid_reg)
+    if _as_code_cache is None:
+        if os.path.exists(cachefile):
+            _as_code_cache = pickle.load(open(cachefile, 'rb'))
+        else:
+            _as_code_cache = {'__counter__': 0}
+    if key not in _as_code_cache:
+        try:
+            _as_code_cache[key] = (True, as_code(asm, quiet, check_invalid_reg, cache=False))
+        except Exception as err:
+            _as_code_cache[key] = (False, (err.message, err.output))
+            raise
+        finally:
+            cnt = (_as_code_cache['__counter__'] + 1) % 20
+            _as_code_cache['__counter__'] = cnt
+            if cnt == 0:
+                pk = pickle.dumps(_as_code_cache)
+                open(cachefile, 'wb').write(pk)
+    ok, output = _as_code_cache[key]
+    if ok:
+        return output
+    else:
+        err = Exception(output[0])
+        err.output = output[1]
+        raise err
 
 
 def all_registers():
