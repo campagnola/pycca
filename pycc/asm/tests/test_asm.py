@@ -169,6 +169,18 @@ def test_mov():
     itest(mov(rax, '\xdd'*8))
     itest(mov(qword([0x12345]), '\0'*8))
 
+def test_mov_16bit_addr():
+    for disp in [0, 0x70, 0x7000]:
+        itest( mov(ebx, [bx+si+disp]) )
+        itest( mov(ebx, [bx+di+disp]) )
+        itest( mov(ebx, [bp+si+disp]) )
+        itest( mov(ebx, [bp+di+disp]) )
+        itest( mov(ebx, [si+disp]) )
+        itest( mov(ebx, [di+disp]) )
+        itest( mov(ebx, [bp+disp]) )
+        itest( mov(ebx, [bx+disp]) )
+        itest( mov(ebx, [disp]) )
+
 def test_movsd():
     itest(movsd(xmm1, [rax+rbx*4+0x1000]))
     itest(movsd([rax+rbx*4+0x1000], xmm1))

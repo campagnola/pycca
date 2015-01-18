@@ -110,7 +110,8 @@ def mod_reg_rm(mod, reg, rm):
         if rm.rex:
             rex_byt |= rex.b
         rm = rm.val
-    return rex_byt, bytes(bytearray([mod_vals[mod] | reg << 3 | rm]))
+    return rex_byt, bytes(bytearray([mod_vals[mod] | reg << 3 | rm]))    
+    
 
 
 
@@ -430,6 +431,11 @@ class Pointer(object):
                 raise TypeError('Cannot compile pointer from registers of '
                                 'different size: %s, %s' % (self.reg1, self.reg2))
 
+        if ((self.reg1 is not None and self.reg1.bits == 16) or
+            (self.reg2 is not None and self.reg2.bits == 16)):
+            # branch to 16-bit addressing mode
+            return self.modrm16(reg)
+
         # do some simple displacement parsing
         if self.disp in (None, 0):
             disp = b''
@@ -515,6 +521,50 @@ class Pointer(object):
             srex, sib = mk_sib(byts, offset, base)            
             return mrex|srex, modrm + sib + disp
                 
+    def modrm16(self, reg):
+        """Generate 16-bit modrm 
+        """
+        if self.scale not in (0, None):
+            raise TypeError("Scale not valid in 16-bit addressing mode.")
+        
+        if isinstance(reg, Register):
+            reg = reg.val
+            
+        regs = [r for r in [self.reg1, self.reg2] if r is not None]
+        regs.sort(key=lambda r: r.name)
+        regs = tuple(regs)
+        rm_vals = {
+            (bx, si): 0b000,
+            (bx, di): 0b001,
+            (bp, si): 0b010,
+            (bp, di): 0b011,
+            (si,):    0b100,
+            (di,):    0b101,
+            (bp,):    0b110,
+            (bx,):    0b111,
+            ():       0b110,  # requires mod=0 and disp16
+        }
+        if regs not in rm_vals:
+            raise TypeError("Invalid 16-bit address '%s'" % str(self))
+        rm = rm_vals[regs]
+        
+        if self.disp in (None, 0):
+            if regs == (bp,):
+                disp = b'\x00'
+                mod = 0b01000000
+            else:
+                disp = b''
+                mod = 0b00000000  # ind
+        else:
+            if regs == ():
+                disp = pack_int(self.disp, int8=False, int16=True, int32=False, int64=False)
+                mod = 0b00000000
+            else:
+                disp = pack_int(self.disp, int8=True, int16=True, int32=False, int64=False)
+                mod = {1: 0b01000000, 2: 0b10000000}[len(disp)]  # ind8, ind16
+        
+        modrm = bytes(bytearray([mod | reg << 3 | rm]))    
+        return 0, modrm + disp
         
 
 def qword(ptr):
