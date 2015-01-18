@@ -169,7 +169,7 @@ def test_mov():
     itest(mov(rax, qword([rcx+rbx])))
     itest(mov(rax, qword([8*rbx+rcx])))
     itest(mov(rax, qword([0x1000+8*rbx+rcx])))
-    itest(mov(rax, '\xdd'*8))
+    itest(mov(rax, b'\xdd'*8))
     itest(mov(qword([0x12345]), '\0'*8))
     itest( mov(ebx, [eax+0x80000000]) )
 

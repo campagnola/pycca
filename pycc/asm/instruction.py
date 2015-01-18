@@ -85,6 +85,11 @@ class Instruction(object):
         for arg in args:
             if isinstance(arg, list):
                 arg = Pointer(arg)
+            #elif isinstance(arg, str):
+                #try:
+                    #arg = bytes(arg)
+                #except TypeError:
+                    #raise TypeError("Invalid string argument; use bytes instead.")
             self.args.append(arg)
 
         # Analysis of input arguments and the corresponding instruction
@@ -112,7 +117,11 @@ class Instruction(object):
             if isinstance(arg, list):
                 arg = Pointer(arg)
             elif isinstance(arg, (str, bytes, bytearray)):
-                arg = '0x' + ''.join(['%02x' % c for c in bytearray(arg)])
+                try:
+                    arg = '0x' + ''.join(['%02x' % c for c in bytearray(arg)])
+                except TypeError:
+                    # string in python3; just use arg as-is
+                    pass
             args.append(str(arg))
         return "%s %s" % (self.name, ', '.join(args))
 

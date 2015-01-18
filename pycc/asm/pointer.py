@@ -198,8 +198,6 @@ class ModRmSib(object):
         'mr' => a is Pointer, b is Register
         'xr' => a is opcode extension, b is register 
         'xp' => a is opcode extension, b is Pointer 
-    The .argbits property is a tuple (a.bits, b.bits)
-    The .bits property gives the maximum bit depth of any register
     The .rex property gives the REX byte required to encode the instruction
     """
     def __init__(self, a, b):
@@ -233,13 +231,6 @@ class ModRmSib(object):
             self.rex |= rex_byt
         else:
             raise TypeError('Invalid argument types: %s, %s' % (type(a), type(b)))
-
-        if hasattr(a, 'bits'):
-            self.argbits = (a.bits, b.bits)
-            self.bits = max(self.argbits)
-        else:
-            self.argbits = (None, b.bits)
-            self.bits = b.bits
 
         assert isinstance(self.code, bytes)
 
