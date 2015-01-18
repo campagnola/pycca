@@ -58,10 +58,41 @@ def itest(instr):
         raise Exception("code mismatch.")
     
 
+def itest_ptr(inst, pre_arg=None, post_arg=None):
+    regs = all_registers()
+    regs.sort(key=lambda a: (a.bits, a.name))
+    checks = ['{reg}', 
+              '[{reg}]',   '[2*{reg}]',   '[{reg}+{reg}]',   '[2*{reg}+{reg}]', 
+              '[{reg}+1]', '[2*{reg}+1]', '[{reg}+{reg}+1]', '[2*{reg}+{reg}+1]']
+    line = '       '
+    cols = [len(line)]
+    for check in checks:
+        add = check.format(reg='reg')+'  '
+        cols.append(len(add))
+        line += add
+    print(line)
+        
+    icls = getattr(instructions, instr)
+    for reg in regs:
+        if reg in invalid_regs() or 'mm' in reg.name:
+            continue
+        line = reg.name + ':'
+        line += ' '*(cols[0]-len(line))
+        for i,check in enumerate(checks):
+            arg = check.format(reg=reg.name)
+            arg = eval(arg, {reg.name: reg})
+            args = [x for x in [pre, arg, post] if x is not None]
+            instr = icls(*args)
+
+
+
+
 
 def addresses(base):
     """Generator yielding various effective address arrangements.
     """
+    yield [base]
+    
     # first try displacements only
     for disp in [0, 0x1, 0x100, 0x10000]:
         yield [disp]
@@ -176,6 +207,11 @@ def test_mov():
     itest( mov(dword([0x12345]), '\0'*4) )
     itest( mov(ebx, [eax+0x80000000]) )
 
+    for dest in [bl, bx, ebx, rbx, r12]:
+        for ptr in addresses(dest):
+            itest(mov(dest, ptr))
+
+
 def test_mov_16bit_addr():
     for disp in [0, 0x70, 0x7000]:
         itest( mov(ebx, [bx+si+disp]) )
@@ -242,6 +278,11 @@ def test_add():
     itest( add(eax, dword([0x1000])) )
     itest( add(dword([0x1000]), 0x1000) )
     itest( add(ax, [eax]) )
+
+    for dest in [bl, bx, ebx, rbx, r12]:
+        for ptr in addresses(dest):
+            itest(add(dest, ptr))
+
     
 def test_sub():
     itest( sub(rax, rbx) )
