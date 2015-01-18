@@ -2,6 +2,12 @@
 
 import re, sys, tempfile, subprocess
 
+try:
+    from __builtin__ import long
+except ImportError:
+    long = int
+
+
 def phex(code):
     if not isinstance(code, list):
         code = [code]

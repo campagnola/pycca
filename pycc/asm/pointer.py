@@ -4,6 +4,7 @@ import struct
 
 from .register import *
 from . import ARCH
+from .util import long
 
 #   Instruction Prefixes
 #----------------------------------------
@@ -209,7 +210,7 @@ class ModRmSib(object):
         for op in (a, b):
             if isinstance(op, Register):
                 self.argtypes += 'r'
-            elif isinstance(op, int) and op < 8:
+            elif isinstance(op, (int, long)) and op < 8:
                 self.argtypes += 'x'
             elif isinstance(op, Pointer):
                 self.argtypes += 'm'
@@ -243,17 +244,26 @@ class ModRmSib(object):
         assert isinstance(self.code, bytes)
 
 
-def pack_int(x, int8=False, int16=True, int32=True, int64=True):
+def pack_int(x, int8=False, int16=True, int32=True, int64=True, try_uint=False):
     """Pack a signed integer into the smallest format possible.
+    
+    If try_uint is True, then attempt unsigned packing if signed packing fails.
     """
-    modes = ['bhiq'[i] for i,m in enumerate([int8, int16, int32, int64]) if m]
-    for mode in modes:
-        try:
-            return struct.pack(mode, x)
-        except struct.error:
-            if mode == modes[-1]:
-                raise
-            # otherwise, try the next mode
+    try:
+        modes = ['bhiq'[i] for i,m in enumerate([int8, int16, int32, int64]) if m]
+        for mode in modes:
+            try:
+                return struct.pack(mode, x)
+            except struct.error:
+                if mode == modes[-1]:
+                    raise
+                # otherwise, try the next mode
+    except struct.error:
+        if try_uint:
+            return pack_uint(x, uint8=int8, uint16=int16, uint32=int32, uint64=int64)
+        else:
+            raise
+
 
 def pack_uint(x, uint8=False, uint16=True, uint32=True, uint64=True):
     """Pack an unsigned integer into the smallest format possible.
@@ -288,7 +298,7 @@ class Pointer(object):
             arg = reg1[0]
             if isinstance(arg, Register):
                 reg1 = arg
-            elif isinstance(arg, int):
+            elif isinstance(arg, (int, long)):
                 reg1 = None
                 disp = arg
             elif isinstance(arg, Pointer):
@@ -352,7 +362,7 @@ class Pointer(object):
             else:
                 raise TypeError("Pointer cannot incorporate more than"
                                 " two registers.")
-        elif isinstance(x, int):
+        elif isinstance(x, (int, long)):
             if y.disp is None:
                 y.disp = x
             else:
@@ -441,7 +451,8 @@ class Pointer(object):
             disp = b''
             mod = 'ind'
         else:
-            disp = pack_int(self.disp, int8=True, int16=False, int32=True, int64=False)
+            disp = pack_int(self.disp, try_uint=True, int8=True, int16=False, int32=True, int64=False)
+                
             mod = {1: 'ind8', 4: 'ind32'}[len(disp)]
 
         if self.scale in (None, 0):
@@ -557,10 +568,10 @@ class Pointer(object):
                 mod = 0b00000000  # ind
         else:
             if regs == ():
-                disp = pack_int(self.disp, int8=False, int16=True, int32=False, int64=False)
+                disp = pack_int(self.disp, try_uint=True, int8=False, int16=True, int32=False, int64=False)
                 mod = 0b00000000
             else:
-                disp = pack_int(self.disp, int8=True, int16=True, int32=False, int64=False)
+                disp = pack_int(self.disp, try_uint=True, int8=True, int16=True, int32=False, int64=False)
                 mod = {1: 0b01000000, 2: 0b10000000}[len(disp)]  # ind8, ind16
         
         modrm = bytes(bytearray([mod | reg << 3 | rm]))    

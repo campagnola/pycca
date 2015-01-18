@@ -5,10 +5,8 @@ import struct, collections
 from .register import Register
 from .pointer import Pointer, pack_int, pack_uint, ModRmSib, rex
 from . import ARCH
+from .util import long
 
-
-if 'long' not in globals():
-    long = int
 
 
 #   Misc. utilities required by instructions
@@ -622,7 +620,7 @@ class RelBranchInstruction(Instruction):
                 code = Code(code)
                 code.replace(addr_offset, "%s - next_instr_addr" % self._label, op_pack)
                 self._code = code
-            elif isinstance(self._label, int):
+            elif isinstance(self._label, (int, long)):
                 # Adjust offset to account for size of instruction
                 offset = struct.pack(op_pack, self._label - len(code))
                 self._code = code[:addr_offset] + offset + code[addr_offset+op_size:]

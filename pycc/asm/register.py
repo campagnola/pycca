@@ -3,6 +3,7 @@
 import sys
 
 from . import ARCH
+from .util import long
 
 """
 32-bit mode registers:
@@ -47,8 +48,6 @@ from . import ARCH
 
 
 
-
-
 #   Register definitions
 #----------------------------------------
 
@@ -89,7 +88,7 @@ class Register(object):
             return Pointer(reg1=self, reg2=x)
         elif isinstance(x, Pointer):
             return x.__add__(self)
-        elif isinstance(x, int):
+        elif isinstance(x, (int, long)):
             return Pointer(reg1=self, disp=x)
         else:
             raise TypeError("Cannot add type %s to Register." % type(x))
@@ -98,13 +97,13 @@ class Register(object):
         return self + x
 
     def __sub__(self, x):
-        if isinstance(x, int):
+        if isinstance(x, (int, long)):
             return Pointer(reg1=self, disp=-x)
         else:
             raise TypeError("Cannot subtract type %s from Register." % type(x))
 
     def __mul__(self, x):
-        if isinstance(x, int):
+        if isinstance(x, (int, long)):
             if x not in [1, 2, 4, 8]:
                 raise ValueError("Register can only be multiplied by 1, 2, 4, or 8.")
             return Pointer(reg1=self, scale=x)

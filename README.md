@@ -52,6 +52,14 @@ Status: beta
 * Unit tests pass on 64-bit Linux under python 2.7 and 3.4
 
 
+Differences with GNU-AS
+-----------------------
+
+* GAS quietly ignores undefined symbols, treating them as null pointers.
+  PyCC will raise an exception.
+* GAS quietly truncates displacement values; PyCC will raise an exception.
+
+
 Todo
 ----
 
