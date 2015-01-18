@@ -3,7 +3,8 @@
 import struct, collections
 
 from .register import Register
-from .pointer import Pointer, pack_int, pack_uint, ModRmSib, rex
+from .pointer import Pointer, pack_int, pack_uint, rex
+from .modrm import ModRmSib
 from . import ARCH
 from .util import long
 
@@ -535,18 +536,18 @@ class Instruction(object):
                 opcode_reg = arg.val
                 if arg.rex:
                     rex_byt = rex_byt | rex.b
-                if arg.bits == ARCH // 2 and b'\x66' not in prefixes:
+                if arg.bits == 16 and b'\x66' not in prefixes:
                     prefixes.append(b'\x66')
             elif enc.startswith('ModRM:r/m'):
                 rm = arg
-                if arg.bits == 16:
+                if arg.bits == 16 and b'\x66' not in prefixes:
                     prefixes.append(b'\x66')
                 if isinstance(arg, Pointer):
                     addrpfx = arg.prefix
                     if addrpfx != b'':
                         prefixes.append(addrpfx)  # adds 0x67 prefix if needed
             elif enc.startswith('ModRM:reg'):
-                if arg.bits == ARCH // 2 and b'\x66' not in prefixes:
+                if arg.bits == 16 and b'\x66' not in prefixes:
                     prefixes.append(b'\x66')
                 reg = arg
             elif enc.startswith('imm'):
@@ -571,6 +572,8 @@ class Instruction(object):
             else:
                 raise RuntimeError("Invalid operand encoding: %s" % enc)
         
+        # GAS prefers 67 before 66
+        prefixes.sort(reverse=True)
         return (prefixes, rex_byt, opcode_reg, reg, rm, imm)
         
 

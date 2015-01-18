@@ -153,24 +153,24 @@ def test_pack_int():
 # Move instructions
 
 def test_mov():
-    itest(mov(eax, 0x1234567))
-    itest(mov(eax, ebx))
-    itest(mov(rax, 0x1234567891))
-    itest(mov(rax, rbx))
-    itest(mov(qword([0x12345]), rax))
+    itest( mov(eax, 0x1234567) )
+    itest( mov(eax, ebx) )
+    itest( mov(rax, 0x1234567891) )
+    itest( mov(rax, rbx) )
+    itest( mov(qword([0x12345]), rax) )
     # note: these tests fail on 32-bit because GNU prefers a shorthand encoding
     # A3/A1+disp32 but the mode used on 64-bit (89/8B) should work as well. 
     #     itest(mov(dword([0x12345]), ecx))
     #     itest(mov(eax, dword([0x12345])))
-    itest(mov(dword([0x12345]), ecx))
-    itest(mov(rax, qword([0x12345])))
-    itest(mov(ecx, dword([0x12345])))
-    itest(mov(rax, qword([rbx])))
-    itest(mov(rax, qword([rcx+rbx])))
-    itest(mov(rax, qword([8*rbx+rcx])))
-    itest(mov(rax, qword([0x1000+8*rbx+rcx])))
-    itest(mov(rax, b'\xdd'*8))
-    itest(mov(qword([0x12345]), '\0'*8))
+    itest( mov(dword([0x12345]), ecx) )
+    itest( mov(rax, qword([0x12345])) )
+    itest( mov(ecx, dword([0x12345])) )
+    itest( mov(rax, qword([rbx])) )
+    itest( mov(rax, qword([rcx+rbx])) )
+    itest( mov(rax, qword([8*rbx+rcx])) )
+    itest( mov(rax, qword([0x1000+8*rbx+rcx])) )
+    itest( mov(rax, b'\xdd'*8) )
+    itest( mov(dword([0x12345]), '\0'*4) )
     itest( mov(ebx, [eax+0x80000000]) )
 
 def test_mov_16bit_addr():

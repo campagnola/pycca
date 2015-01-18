@@ -58,7 +58,9 @@ def compare(instr):
 
     try:
         code2 = as_code(asm)
+        sys.stdout.write('py:  ')
         phexbin(code1)
+        sys.stdout.write('gnu: ')
         phexbin(code2)
         if code1 == code2:
             print("[codes match]")

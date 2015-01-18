@@ -187,54 +187,6 @@ def mk_sib(byts, offset, base):
 #
 
 
-class ModRmSib(object):
-    """Container for mod_reg_rm + sib + displacement string and related
-    information.
-    
-    The .code property is the compiled byte code
-    The .argtypes property is a description of the input types:
-        'rr' => both inputs are Registers
-        'rm' => a is Register, b is Pointer
-        'mr' => a is Pointer, b is Register
-        'xr' => a is opcode extension, b is register 
-        'xp' => a is opcode extension, b is Pointer 
-    The .rex property gives the REX byte required to encode the instruction
-    """
-    def __init__(self, a, b):
-        self.a = a
-        self.b = b
-        
-        self.argtypes = ''
-        for op in (a, b):
-            if isinstance(op, Register):
-                self.argtypes += 'r'
-            elif isinstance(op, (int, long)) and op < 8:
-                self.argtypes += 'x'
-            elif isinstance(op, Pointer):
-                self.argtypes += 'm'
-            else:
-                raise Exception("Arguments must be Register, Pointer, or "
-                                "opcode extension.")
-        
-        self.rex = 0
-        if self.argtypes in ('rr', 'xr'):
-            rex_byt, self.code = mod_reg_rm('dir', a, b)
-            if self.argtypes != 'xr' and a.rex:
-                self.rex |= rex.r
-            if b.rex: 
-                self.rex |= rex.b
-        elif self.argtypes == 'mr':
-            rex_byt, self.code = a.modrm_sib(b)
-            self.rex |= rex_byt
-        elif self.argtypes in ('rm', 'xm'):
-            rex_byt, self.code = b.modrm_sib(a)
-            self.rex |= rex_byt
-        else:
-            raise TypeError('Invalid argument types: %s, %s' % (type(a), type(b)))
-
-        assert isinstance(self.code, bytes)
-
-
 def pack_int(x, int8=False, int16=True, int32=True, int64=True, try_uint=False):
     """Pack a signed integer into the smallest format possible.
     
@@ -505,7 +457,7 @@ class Pointer(object):
             # sanity checks
             if offset is None:
                 raise TypeError("Cannot have SIB scale without offset register.")
-            if offset.val == 4:
+            if offset.val == 4 and not offset.rex:
                 raise TypeError("Cannot encode register %s as SIB offset." % offset.name)
             #if base is not None and base.val == 5:
                 #raise TypeError("Cannot encode register %s as SIB base." % base.name)
