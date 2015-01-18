@@ -50,9 +50,9 @@ def compare(instr):
             code2 = as_code(asm)
         except Exception as exc2:
             print(exc1.message)
-            print("[pycc and gnu-as both failed.]")
+            print("[pyca and gnu-as both failed.]")
             return
-        print("[pycc failed; gnu-as did not]")
+        print("[pyca failed; gnu-as did not]")
         phexbin(code2)
         raise
 
@@ -66,7 +66,7 @@ def compare(instr):
             print("[codes match]")
     except Exception as exc2:
         phexbin(code1)
-        print("[gnu-as failed; pycc did not]")
+        print("[gnu-as failed; pyca did not]")
         raise
 
     

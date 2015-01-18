@@ -10,9 +10,9 @@ import pyca
 
 
 description = """\
-PyCC provides compilers for C and x86 assembly that allow optimized routines
+PyCA provides compilers for C and x86 assembly that allow optimized routines
 to be compiled and executed at runtime with no external dependencies.
-PyCC supports 32- and 64-bit intel/amd architectures on Linux, OSX, and 
+PyCA supports 32- and 64-bit intel/amd architectures on Linux, OSX, and 
 Windows with python 2.7 or 3.4. Current status: assembly compiler is beta, C
 compiler is alpha.
 """

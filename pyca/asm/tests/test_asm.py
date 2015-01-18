@@ -1,8 +1,8 @@
 # -'- coding: utf-8 -'-
 
 from pytest import raises
-from pycc.asm import *
-from pycc.asm.pointer import Pointer, rex, pack_int
+from pyca.asm import *
+from pyca.asm.pointer import Pointer, rex, pack_int
 
 # Catalog of registers
 regs = {}

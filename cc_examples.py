@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-from pycc.cc import CCode, Function, Assign, Return
+from pyca.cc import CCode, Function, Assign, Return
 
 code = CCode([
     Function('int', 'add_one', [('int', 'x')], [
