@@ -167,29 +167,31 @@ print("""
 # This example copies 8 bytes from one char* to another char*.
 
 # Each platform uses a different calling convention:
-if sys.platform == 'win32':
-    if ARCH == 32:
-        # stdcall convention
-        fn = mkfunction([
-            mov(ecx, [esp+8]),  # get arg 1 location from stack
-            mov(edx, [esp+4]),  # get arg 0 location from stack
-            mov(eax, [ecx]),    # get 4 bytes from arg 1 string
-            mov([edx], eax),    # copy to arg 0 string
-            mov(eax, [ecx+4]),  # get next 4 bytes
-            mov([edx+4], eax),  # copy to arg 0 string
-            ret(8),             # in stdcall, the callee must clean up the stack
-        ])
+if ARCH == 32:
+    if sys.platform == 'win32':
+        ret_byts = 8
     else:
+        ret_byts = 0
+        
+    # stdcall convention
+    fn = mkfunction([
+        mov(ecx, [esp+8]),  # get arg 1 location from stack
+        mov(edx, [esp+4]),  # get arg 0 location from stack
+        mov(eax, [ecx]),    # get 4 bytes from arg 1 string
+        mov([edx], eax),    # copy to arg 0 string
+        mov(eax, [ecx+4]),  # get next 4 bytes
+        mov([edx+4], eax),  # copy to arg 0 string
+        ret(8),             # in stdcall, the callee must clean up the stack
+    ])
+    
+else:
+    if sys.platform == 'win32':
         # Microsoft x64 convention
         fn = mkfunction([
             mov(rax, [rdx]),  # copy 8 bytes from second arg
             mov([rcx], rax),  # copy to first arg
             ret(),            # caller clean-up
         ])
-else:
-    if ARCH == 32:
-        # cdecl convention
-        raise NotImplementedError()
     else:
         # System V AMD64 convention
         fn = mkfunction([
@@ -249,23 +251,21 @@ else:
     fp = struct.unpack('I', fp[:4])[0]
 
     if sys.platform == 'win32':
-        exp = mkfunction([
-            push(ebp),         # Need to set up a proper frame here.
-            mov(ebp, esp),
-            push(dword([ebp+12])),     # Copy input value to new location in stack
-            push(dword([ebp+8])),
-            mov(eax, fp),      # Load address of exp()
-            call(eax),         # call exp() - will clean up stack for us
-            mov(esp, ebp),
-            pop(ebp),
-            ret(8),            # return; callee clean-up
-        ])
+        ret_byts = 8
     else:
-        exp = mkfunction([
-            mov(eax, fp),      # Load address of exp()
-            call(eax),         # call exp()  - input arg is already in xmm0
-            ret(),             # return; now output arg is in xmm0
-        ])
+        ret_byts = 0
+        
+    exp = mkfunction([
+        push(ebp),         # Need to set up a proper frame here.
+        mov(ebp, esp),
+        push(dword([ebp+12])),     # Copy input value to new location in stack
+        push(dword([ebp+8])),
+        mov(eax, fp),      # Load address of exp()
+        call(eax),         # call exp() - will clean up stack for us
+        mov(esp, ebp),
+        pop(ebp),
+        ret(ret_byts),            # return; clean stack only in windows
+    ])
 
 exp.restype = ctypes.c_double
 exp.argtypes = (ctypes.c_double,)
@@ -298,21 +298,25 @@ if ARCH == 64:
     find_first.restype = ctypes.c_uint64
 else:
     if sys.platform == 'win32':
-        find_first = mkfunction([
-            mov(eax, 0),
-            mov(edx, dword([esp+8])),   # array length
-            mov(ecx, dword([esp+4])),   # base array pointer
-            label('start_for'),
-            cmp(dword([ecx+eax*4]), 0),
-            jge('break_for'),
-            inc(eax),
-            cmp(eax, edx),
-            jge('break_for'),
-            jmp('start_for'),
-            label('break_for'),
-            ret(8)
-        ])
-
+        ret_byts = 8
+    else:
+        ret_byts = 0
+        
+    find_first = mkfunction([
+        mov(eax, 0),
+        mov(edx, dword([esp+8])),   # array length
+        mov(ecx, dword([esp+4])),   # base array pointer
+        label('start_for'),
+        cmp(dword([ecx+eax*4]), 0),
+        jge('break_for'),
+        inc(eax),
+        cmp(eax, edx),
+        jge('break_for'),
+        jmp('start_for'),
+        label('break_for'),
+        ret(ret_byts)
+    ])
+        
     find_first.argtypes = [ctypes.c_uint32, ctypes.c_uint32]
     find_first.restype = ctypes.c_uint32
 
