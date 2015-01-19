@@ -13,6 +13,9 @@ class CodePage(object):
     """
     def __init__(self, asm):
         self.labels = {}
+        if isinstance(asm, str):
+            asm = parse_asm(asm)
+        
         self.asm = asm
         code_size = len(self)
         #pagesize = os.sysconf("SC_PAGESIZE")
