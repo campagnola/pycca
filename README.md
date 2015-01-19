@@ -62,6 +62,7 @@ Roadmap
   support for 32- and 64-bit calling conventions on Linux, OSX, and Windows.
 * Version 0.4: Parser supporting a subset of C language including functions,
   control flow, and basic data types. 
+* Version 0.5: Support for SSE2, AVX extensions.
 
 
 Differences with GNU-AS
