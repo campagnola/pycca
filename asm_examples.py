@@ -41,18 +41,21 @@ print("""
 ----------------------------------------------
 """)
 
-fn = mkfunction([
-    mov(eax, 0x1),
-    jmp('start'),
-    label('end'),
-    ret(),
-    mov(eax, 0x1),
-    mov(eax, 0x1),
-    label('start'),
-    mov(eax, struct.pack('I', 0xdeadbeef)),
-    jmp('end'),
-    mov(eax, 0x1),
-])
+# Also show that we can give an assembly string rather than 
+# instruction objects:
+fn = mkfunction("""
+        mov  eax, 0x1
+        jmp  start
+    end:
+        ret
+        mov  eax, 0x1
+        mov  eax, 0x1
+    start:
+        mov  eax, 0xdeadbeef
+        jmp  end
+        mov  eax, 0x1
+""")
+
 fn.restype = ctypes.c_uint32
 
 # We get 0xdeadbeef back if jumps are followed.

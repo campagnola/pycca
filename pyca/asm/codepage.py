@@ -2,6 +2,8 @@
 
 import sys, mmap, ctypes
 from .instruction import Instruction, Code, Label
+from .parser import parse_asm
+
 
 class CodePage(object):
     """
