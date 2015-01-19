@@ -51,8 +51,9 @@ providing the return and argument types::
     result = func(3.1415)
 
 For more examples of building and calling functions, accessing array data, and
-more, see ``asm_examples.py``. For lists of supported instructions and 
-registers, see the assembler API reference. 
+more, see `asm_examples.py <https://github.com/lcampagn/pyca/blob/master/asm_examples.py>`_. 
+For lists of supported :ref:`instructions <instructions>` and 
+:ref:`registers <registers>`, see the :ref:`asm_api_ref`. 
 
 
 Differences with GNU-AS
@@ -114,9 +115,12 @@ To add new instructions:
 Note that advanced CPU extensions such as SSE2 and AVX are not yet supported.
 
 
+.. _asm_api_ref:
 
 Assembly API Reference
 ======================
+
+.. _registers:
 
 Supported registers
 -------------------
@@ -150,6 +154,7 @@ All registers may be accessed as attributes of the ``pyca.asm`` or
     :members:
 
 
+.. _instructions:
 
 Supported instructions
 ----------------------
