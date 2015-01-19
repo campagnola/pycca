@@ -363,26 +363,26 @@ class imul(Instruction):
     three forms, depending on the number of operands.
     
     * One-operand form — This form is identical to that used by the MUL 
-    instruction. Here, the source operand (in a general-purpose register or 
-    memory location) is multiplied by the value in the AL, AX, EAX, or RAX 
-    register (depending on the operand size) and the product (twice the size of
-    the input operand) is stored in the AX, DX:AX, EDX:EAX, or RDX:RAX 
-    registers, respectively.
+      instruction. Here, the source operand (in a general-purpose register or 
+      memory location) is multiplied by the value in the AL, AX, EAX, or RAX 
+      register (depending on the operand size) and the product (twice the size
+      of the input operand) is stored in the AX, DX:AX, EDX:EAX, or RDX:RAX 
+      registers, respectively.
     
     * Two-operand form — With this form the destination operand (the first 
-    operand) is multiplied by the source operand (second operand). The 
-    destination operand is a general-purpose register and the source operand is
-    an immediate value, a general-purpose register, or a memory location. The 
-    intermediate product (twice the size of the input operand) is truncated and
-    stored in the destination operand location.
+      operand) is multiplied by the source operand (second operand). The 
+      destination operand is a general-purpose register and the source operand
+      is an immediate value, a general-purpose register, or a memory location. 
+      The intermediate product (twice the size of the input operand) is 
+      truncated and stored in the destination operand location.
     
     * Three-operand form — This form requires a destination operand (the first
-    operand) and two source operands (the second and the third operands). Here,
-    the first source operand (which can be a general-purpose register or a 
-    memory location) is multiplied by the second source operand (an immediate 
-    value). The intermediate product (twice the size of the first source 
-    operand) is truncated and stored in the destination operand (a 
-    general-purpose register).
+      operand) and two source operands (the second and the third operands).
+      Here, the first source operand (which can be a general-purpose register
+      or a memory location) is multiplied by the second source operand (an 
+      immediate value). The intermediate product (twice the size of the first 
+      source operand) is truncated and stored in the destination operand (a 
+      general-purpose register).
     """
     name = "imul"
 

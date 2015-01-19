@@ -60,31 +60,9 @@ Roadmap
 
 * Version 0.3: Basic C compiler (based on pre-parsed data structures) with 
   support for 32- and 64-bit calling conventions on Linux, OSX, and Windows.
+  This will require adding many more floating point and other arithmetic
+  instructions.
 * Version 0.4: Parser supporting a subset of C language including functions,
   control flow, and basic data types. 
-* Version 0.5: Support for SSE2, AVX extensions.
+* Version 0.5: Add support for SSE2, AVX instructions.
 
-
-Differences with GNU-AS
------------------------
-
-Pyca's assembly is closely modeled after the intel assembler syntax and is
-tested to produce identical output to the GNU assembler using the
-".intel-mnemonic" directive. There are a few differences, however:
-
-* GAS quietly ignores undefined symbols, treating them as null pointers;
-  pyca will raise an exception.
-* GAS quietly truncates displacement values; pyca will raise an exception.
-
-
-Todo
-----
-
-* Documentation on how to add new instruction support based on intel reference, 
-  how to add new unit tests
-
-* Add more floating point instructions
-
-* Add SSE, AVX instructions  (and check cpu flags)
-
-* Support for GIL handling

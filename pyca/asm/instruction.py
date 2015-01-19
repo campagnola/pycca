@@ -237,8 +237,9 @@ class Instruction(object):
         
         Sets self._sig to a tuple of strings like 'r32', 'r/m64', and 'imm8'
         Sets self._clean_args to a tuple of arguments that have been processed:
-            - lists are converted to Pointer
-            - ints are converted to packed string
+        
+            * lists are converted to Pointer
+            * ints are converted to packed string
         """
         sig = []
         clean_args = []
@@ -506,14 +507,15 @@ class Instruction(object):
         """Use supplied arguments and selected operand encodings to determine
         how to encode operands. 
         
-        Returns a tuple:
-            prefixes: a list of prefix strings
-            rex_byt: an integer REX byte (0 for no REX byte)
-            opcode_reg: a register to encode as the last 3 bits of the opcode 
-                        (or None)
-            reg: register to use in the reg field of a ModR/M byte
-            rm: register or pointer to use in the r/m field of a ModR/M byte
-            imm: immediate string
+        Returns a tuple of 6 items:
+        
+            1. prefixes: a list of prefix strings
+            2. rex_byt: an integer REX byte (0 for no REX byte)
+            3. opcode_reg: a register to encode as the last 3 bits of the opcode 
+               (or None)
+            4. reg: register to use in the reg field of a ModR/M byte
+            5. rm: register or pointer to use in the r/m field of a ModR/M byte
+            6. imm: immediate string
         """
         clean_args = self.clean_args
         operand_enc = self.operand_enc
