@@ -13,10 +13,14 @@ class CodePage(object):
     The memory page(s) may contain multiple functions; use get_function(label)
     to create functions beginning at a specific location in the code.
     """
-    def __init__(self, asm):
+    def __init__(self, asm, namespace=None):
         self.labels = {}
         if isinstance(asm, str):
-            asm = parse_asm(asm)
+            asm = parse_asm(asm, namespace=namespace)
+        else:
+            if namespace is not None:
+                raise TypeError("Namespace argument may only be used with "
+                                "string assembly type.")
         
         self.asm = asm
         code_size = len(self)
@@ -132,6 +136,6 @@ class WinPage(object):
         vfree(self.addr, self.size, MEM_RELEASE)
     
 
-def mkfunction(code):
-    page = CodePage(code)
+def mkfunction(code, namespace=None):
+    page = CodePage(code, namespace=namespace)
     return page.get_function()
