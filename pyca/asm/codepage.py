@@ -6,12 +6,18 @@ from .parser import parse_asm
 
 
 class CodePage(object):
-    """
-    Encapsulates a block of executable mapped memory to which a sequence of
-    asm commands are compiled and written. 
+    """Compiles assembly, loads machine code into executable memory, and 
+    generates python functions for accessing the code.
     
-    The memory page(s) may contain multiple functions; use get_function(label)
-    to create functions beginning at a specific location in the code.
+    Initialize with either an assembly string or a list of 
+    :class:`Instruction <pycc.asm.Instruction>` instances. The *namespace*
+    argument may be used to define extra symbols when compiling from an 
+    assembly string. 
+    
+    This class encapsulates a block of executable mapped memory to which a 
+    sequence of asm commands are compiled and written. The memory page(s) may 
+    contain multiple functions; use get_function(label) to create functions 
+    beginning at a specific location in the code.
     """
     def __init__(self, asm, namespace=None):
         self.labels = {}
@@ -52,6 +58,12 @@ class CodePage(object):
         return sum(map(len, self.asm))
 
     def get_function(self, label=None):
+        """Create and return a python function that points to a specific label
+        within the compiled code block, or the first byte if no label is given. 
+        
+        The return value is a *ctypes* function; it is recommended to set the
+        restype and argtypes properties on the function before calling it.
+        """
         addr = self.page_addr
         if label is not None:
             addr = self.labels[label]
@@ -94,6 +106,9 @@ class CodePage(object):
         return code
 
     def dump(self):
+        """Return a string representation of the machine code and assembly
+        instructions contained in the code page.
+        """
         code = ''
         ptr = 0
         for instr in self.asm:
@@ -137,5 +152,11 @@ class WinPage(object):
     
 
 def mkfunction(code, namespace=None):
+    """Convenience function that creates a 
+    :class:`CodePage <pyca.asm.CodePage>` from the supplied *code* argument 
+    and returns a function pointing to the first byte of the compiled code. 
+    
+    See :func:`CodePage.get_function() <pyca.asm.CodePage.get_function>`.
+    """
     page = CodePage(code, namespace=namespace)
     return page.get_function()

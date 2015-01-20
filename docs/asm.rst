@@ -120,6 +120,18 @@ Note that advanced CPU extensions such as SSE2 and AVX are not yet supported.
 Assembly API Reference
 ======================
 
+
+Building executable code
+------------------------
+
+.. autofunction:: pyca.asm.mkfunction
+
+.. autoclass:: pyca.asm.CodePage
+    :members:
+
+For more examples of building and calling functions, accessing array data, and
+more, see `asm_examples.py <https://github.com/lcampagn/pyca/blob/master/asm_examples.py>`_. 
+
 .. _registers:
 
 Supported registers

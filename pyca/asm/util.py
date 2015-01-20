@@ -9,6 +9,8 @@ except ImportError:
 
 
 def phex(code):
+    """Print hexadecimal representation of machine code.
+    """
     if not isinstance(code, list):
         code = [code]
     for instr in code:
@@ -17,6 +19,8 @@ def phex(code):
         print('')
 
 def pbin(code):
+    """Print binary representation of machine code.
+    """
     if not isinstance(code, list):
         code = [code]
     for instr in code:
@@ -25,6 +29,10 @@ def pbin(code):
         print('')
 
 def phexbin(code):
+    """Print hexadecimal and binary representations of machine code.
+    
+    Argument may be string, bytes, or bytearray.
+    """
     if not isinstance(code, list):
         code = [code]
     for instr in code:
@@ -38,7 +46,11 @@ def phexbin(code):
 
 
 def compare(instr):
-    """Print instruction's code beside the output of gnu as.
+    """Print instruction's code beside the output of GNU-as.
+    
+    Accepts a single :class:`Instruction <pyca.asm.Instruction>` argument. This is used to determine the 
+    machine code differences (hopefully there are none!) between the output
+    of an Instruction and the equivalent output from the GNU assembler.
     """
     asm = str(instr)
     print("asm:  " + asm)
@@ -71,9 +83,11 @@ def compare(instr):
 
     
 def run_as(asm, quiet=False, check_invalid_reg=False):
-    """ Use gnu as and objdump to show ideal compilation of *asm*.
+    """Use GNU assembler to compile the *asm* string argument.  
     
-    This prepends the given code with ".intel_syntax noprefix\n" 
+    This prepends the given code with ".intel_syntax noprefix\n" before
+    compiling and returns only the relevant machine code output. If the
+    compile fails, then an exception is raised.
     """
     #asm = """
     #.section .text
@@ -116,7 +130,19 @@ def run_as(asm, quiet=False, check_invalid_reg=False):
 
 
 def as_code(asm, quiet=False, check_invalid_reg=False, cache=False):
-    """Return machine code string for *asm* using gnu as and objdump.
+    """Use GNU assembler to compile the *asm* string argument.  
+    
+    This prepends the given code with ``.intel_syntax noprefix`` before
+    compiling and returns the machine code output converted to a
+    bytearray. If the compile fails, then an exception is raised.
+    
+    If *check_invalid_reg* is True, then an exception will be raised if the
+    instruction makes use of a register that is not supported on the current
+    architecture (by default, GNU-as silently ignores such symbols).
+    
+    If *cache* is True, then the result will be cached in 
+    ``pyca/asm/gnu_as_cache.pk`` to speed up subsequent requests for the same
+    instruction.
     """
     # First try returning cached output
     if cache:
@@ -178,6 +204,7 @@ def as_code_cached(asm, quiet, check_invalid_reg):
 
 def all_registers():
     """Return all registers defined in asm.register
+    (excluding st(i) registers)
     """
     from . import register
     regs = []

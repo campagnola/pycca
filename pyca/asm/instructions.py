@@ -10,10 +10,21 @@ from .instruction import Instruction, RelBranchInstruction
 
 
 class push(Instruction):
-    """Push register, memory, or immediate onto the stack.
+    """Decrements the stack pointer and then stores the source operand on the 
+    top of the stack.
     
-    Opcode: 50+rd
-    Push value stored in reg onto the stack.
+    ========== ====== ======
+    Operands   32-bit 64-bit
+    ========== ====== ======
+    m16        yes    yes
+    m32        yes    no
+    m64        no     yes
+    r16        yes    yes
+    r32        yes    no
+    r64        no     yes
+    imm8       yes    yes
+    imm32      yes    yes
+    ========== ====== ======
     """
     name = 'push'
 
@@ -34,7 +45,10 @@ class push(Instruction):
         'o': ['opcode +rd (r)'],
         'i': ['imm8/16/32'],
     }
-            
+    
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
+
     
 class pop(Instruction):
     """Loads the value from the top of the stack to the location specified with
@@ -59,6 +73,9 @@ class pop(Instruction):
         'm': ['ModRM:r/m (r)'],
         'o': ['opcode +rd (r)'],
     }
+    
+    def __init__(self, dst):  # set method signature
+        Instruction.__init__(self, dst)
     
 
 class ret(Instruction):
@@ -95,6 +112,8 @@ class leave(Instruction):
         ((), ['c9', None, True, True]),
     ])
         
+    def __init__(self):  # set method signature
+        Instruction.__init__(self)
 
 
 class call(RelBranchInstruction):
@@ -121,6 +140,9 @@ class call(RelBranchInstruction):
         'i': ['imm32'],
     }
         
+    def __init__(self, addr):  # set method signature
+        Instruction.__init__(self, addr)
+
 
 #   Data moving instructions
 #----------------------------------------
@@ -167,6 +189,9 @@ class mov(Instruction):
         'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
     }
 
+    def __init__(self, dst, src):  # set method signature
+        Instruction.__init__(self, dst, src)
+
 
 class movsd(Instruction):
     """MOVSD moves a scalar double-precision floating-point value from the 
@@ -191,6 +216,9 @@ class movsd(Instruction):
         'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
     }
     
+    def __init__(self, dst, src):  # set method signature
+        Instruction.__init__(self, dst, src)
+
 
 
 #   Arithmetic instructions
@@ -237,6 +265,9 @@ class add(Instruction):
         'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
     }
 
+    def __init__(self, dst, src):  # set method signature
+        Instruction.__init__(self, dst, src)
+
 
 class sub(Instruction):
     """Subtracts the second operand (source operand) from the first operand 
@@ -276,6 +307,9 @@ class sub(Instruction):
         'mr': ['ModRM:r/m (r,w)', 'ModRM:reg (r)'],
         'rm': ['ModRM:reg (r,w)', 'ModRM:r/m (r)'],
     }
+
+    def __init__(self, dst, src):  # set method signature
+        Instruction.__init__(self, dst, src)
 
 
 # NOTE: this is broken because lea uses a different interpretation of the 0x66
@@ -330,6 +364,9 @@ class dec(Instruction):
         'o': ['opcode +rd (r, w)'],
     }
 
+    def __init__(self, dst):  # set method signature
+        Instruction.__init__(self, dst)
+
     
 class inc(Instruction):
     """Adds 1 to the destination operand, while preserving the state of the CF
@@ -356,6 +393,9 @@ class inc(Instruction):
         'm': ['ModRM:r/m (r,w)'],
         'o': ['opcode +rd (r, w)'],
     }
+
+    def __init__(self, dst):  # set method signature
+        Instruction.__init__(self, dst)
 
 
 class imul(Instruction):
@@ -426,6 +466,9 @@ class idiv(Instruction):
         'm': ['ModRM:r/m (r)'],
     }
 
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
+
     
 class fld(Instruction):
     """Pushes the source operand onto the FPU register stack.
@@ -451,6 +494,9 @@ class fld(Instruction):
         'o': ['opcode +rd (r)'],
     }
 
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
+
 
 class fst(Instruction):
     """The FST instruction copies the value in the ST(0) register to the 
@@ -472,6 +518,9 @@ class fst(Instruction):
         'm': ['ModRM:r/m (r)'],
         'o': ['opcode +rd (r)'],
     }
+
+    def __init__(self, dst):  # set method signature
+        Instruction.__init__(self, dst)
 
 
 class fstp(Instruction):
@@ -495,6 +544,9 @@ class fstp(Instruction):
         'm': ['ModRM:r/m (r)'],
         'o': ['opcode +rd (r)'],
     }
+
+    def __init__(self, dst):  # set method signature
+        Instruction.__init__(self, dst)
 
 
 class fild(Instruction):
@@ -525,6 +577,9 @@ class fild(Instruction):
             self.prefixes.remove(b'\x66')
         Instruction.generate_code(self)
 
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
+
 
 class fist(Instruction):
     """The FIST instruction converts the value in the ST(0) register to a 
@@ -551,6 +606,9 @@ class fist(Instruction):
         if b'\x66' in self.prefixes:
             self.prefixes.remove(b'\x66')
         Instruction.generate_code(self)
+
+    def __init__(self, dst):  # set method signature
+        Instruction.__init__(self, dst)
 
 
 class fistp(Instruction):
@@ -580,6 +638,9 @@ class fistp(Instruction):
             self.prefixes.remove(b'\x66')
         Instruction.generate_code(self)
 
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
+
 
 class fabs(Instruction):
     """Clears the sign bit of ST(0) to create the absolute value of the 
@@ -590,6 +651,9 @@ class fabs(Instruction):
     modes = collections.OrderedDict([
         ((), ('d9e1', None, True, True))
     ])
+
+    def __init__(self):  # set method signature
+        Instruction.__init__(self)
 
 
 class fadd(Instruction):
@@ -617,6 +681,7 @@ class fadd(Instruction):
         'o-': ['opcode +rd (r)', None],
         '-o': [None, 'opcode +rd (r)'],
     }
+
     
 class faddp(Instruction):
     """Adds the destination and source operands and stores the sum in the 
@@ -662,6 +727,9 @@ class fiadd(Instruction):
         if b'\x66' in self.prefixes:
             self.prefixes.remove(b'\x66')
         Instruction.generate_code(self)
+
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
 
 
 
@@ -716,8 +784,15 @@ class cmp(Instruction):
         'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
     }
 
+    def __init__(self, a, b):  # set method signature
+        Instruction.__init__(self, a, b)
+
 
 class test(Instruction):
+    """Computes the bit-wise logical AND of first operand (source 1 operand) 
+    and the second operand (source 2 operand) and sets the SF, ZF, and PF 
+    status flags according to the result. The result is then discarded.
+    """
     name = "test"
     
     modes = collections.OrderedDict([
@@ -737,6 +812,9 @@ class test(Instruction):
         'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
     }
     
+    def __init__(self, a, b):  # set method signature
+        Instruction.__init__(self, a, b)
+
 
 
 
@@ -744,6 +822,11 @@ class test(Instruction):
 #----------------------------------------
 
 class jmp(RelBranchInstruction):
+    """Transfers program control to a different point in the instruction stream
+    without recording return information. The destination (target) operand 
+    specifies the address of the instruction being jumped to. This operand can 
+    be an immediate value, a general-purpose register, or a memory location.
+    """
     name = "jmp"
     
     # generate absolute call
@@ -761,6 +844,9 @@ class jmp(RelBranchInstruction):
         'm': ['ModRM:r/m (r)'],
         'i': ['imm32'],
     }
+
+    def __init__(self, addr):  # set method signature
+        Instruction.__init__(self, addr)
 
 
 def _jcc(name, opcode, doc):
@@ -819,12 +905,12 @@ js   = _jcc('js',   '0f88', """Jump near if sign (SF=1).""")
 
 
 class int_(Instruction):
-    """INT code
-    
-    Call to interrupt. Code is 1 byte.
-    
-    Common interrupt codes:
-    0x80 = OS
+    """The INT n instruction generates a call to the interrupt or exception 
+    handler specified with the destination operand. The destination operand 
+    specifies a vector from 0 to 255, encoded as an 8-bit unsigned intermediate
+    value. Each vector provides an index to a gate descriptor in the IDT. The 
+    first 32 vectors are reserved by Intel for system use. Some of these 
+    vectors are used for internally generated exceptions.
     """
     name = 'int'
     
@@ -836,10 +922,27 @@ class int_(Instruction):
         'i': ['imm8']
     }
 
+    def __init__(self, code):  # set method signature
+        Instruction.__init__(self, code)
+
+
 class syscall(Instruction):
+    """SYSCALL invokes an OS system-call handler at privilege level 0. It does
+    so by loading RIP from the IA32_LSTAR MSR (after saving the address of the
+    instruction following SYSCALL into RCX). (The WRMSR instruction ensures 
+    that the IA32_LSTAR MSR always contain a canonical address.) 
+    
+    SYSCALL also saves RFLAGS into R11 and then masks RFLAGS using the 
+    IA32_FMASK MSR (MSR address C0000084H); specifically, the processor clears
+    in RFLAGS every bit corresponding to a bit that is set in the IA32_FMASK
+    MSR.
+    """
     name = 'syscall'
     
     modes = collections.OrderedDict([
         ((), ['0f05', None, True, True]),
     ])
+
+    def __init__(self, code):  # set method signature
+        Instruction.__init__(self, code)
 
