@@ -16,14 +16,14 @@ class push(Instruction):
     ========== ====== ======
     Operands   32-bit 64-bit
     ========== ====== ======
-    m16        yes    yes
-    m32        yes    no
-    m64        no     yes
-    r16        yes    yes
-    r32        yes    no
-    r64        no     yes
-    imm8       yes    yes
-    imm32      yes    yes
+    m16        \+      \+
+    m32        \+    
+    m64               \+
+    r16        \+      \+
+    r32        \+    
+    r64               \+
+    imm8       \+      \+
+    imm32      \+      \+
     ========== ====== ======
     """
     name = 'push'
@@ -234,7 +234,44 @@ class add(Instruction):
     two memory operands cannot be used in one instruction.) When an immediate 
     value is used as an operand, it is sign-extended to the length of the 
     destination operand format.
-    """    
+    
+    ====== ======= ====== ====== ==============================================
+    Dest   Src     32-bit 64-bit Description
+    ====== ======= ====== ====== ==============================================
+    r/m8   imm8     \+     \+    Add immediate to register/memory
+    r/m16  imm8/16  \+     \+    r/m += imm
+    r/m32  imm8/32  \+    
+    r/m64  imm8/64         \+
+    ------ ------- ------ ------ ----------------------------------------------
+    ------ ------- ------ ------ ----------------------------------------------
+    r/m8   r/m8     \+     \+    Add register/memory to register/memory
+    r/m16  r/m16    \+     \+    r/m += r/m
+    r/m32  r/m32    \+           Note: only one operand may be a memory pointer 
+    r/m64  r/m64           \+
+    ====== ======= ====== ====== ==============================================
+
+    +-------+---------+-------+-------+----------------------------------------+
+    |Dest   |Src      |32-bit |64-bit |Description                             |
+    +=======+=========+=======+=======+========================================+
+    |       |         |       |       |                                        | 
+    | |r/m8 | |imm8   | | \+  | | \+  | |Add immediate to register or memory   |
+    | |r/m16| |imm8/16| | \+  | | \+  | |r/m += imm                            |
+    | |r/m32| |imm8/32| | \+  | |     | |                                      |
+    | |r/m64| |imm8/64| |     | | \+  | |                                      |
+    |       |         |       |       |                                        | 
+    +-------+---------+-------+-------+----------------------------------------+
+    | |r/m8 | |r8     | | \+  | | \+  | |Add register to register or memory    |
+    | |r/m16| |r16    | | \+  | | \+  | |r/m += r                              |
+    | |r/m32| |r32    | | \+  | |     | |                                      |
+    | |r/m64| |r64    | |     | | \+  | |                                      |
+    +-------+---------+-------+-------+----------------------------------------+
+    | |r8   | |r/m8   | | \+  | | \+  | |Add register or memory to register    |
+    | |r16  | |r/m16  | | \+  | | \+  | |r += r/m                              |
+    | |r32  | |r/m32  | | \+  | |     | |                                      |
+    | |r32  | |r/m64  | |     | | \+  | |                                      |
+    +-------+---------+-------+-------+----------------------------------------+
+    
+    """
     name = 'add'
     
     modes = collections.OrderedDict([
