@@ -304,7 +304,24 @@ def test_inc():
     itest( inc(rax) )
 
 def test_imul():
+    itest( imul(ax, bp) )
     itest( imul(eax, ebp) )
+    itest( imul(rax, rbp) )
+    
+    itest( imul(ax, word([ebp])) )
+    itest( imul(eax, word([ebp])) )
+    itest( imul(rax, word([rbp])) )
+    
+    for imm in [0x2, 0x2000]:
+        itest( imul(ax, bp, imm) )
+        itest( imul(eax, ebp, imm) )
+        itest( imul(rax, rbp, imm) )
+        
+        itest( imul(ax, word([ebp]), imm) )
+        itest( imul(eax, word([ebp]), imm) )
+        itest( imul(rax, word([rbp]), imm) )
+        
+        
     
 def test_idiv():
     itest( idiv(ebp) )

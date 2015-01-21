@@ -235,42 +235,14 @@ class add(Instruction):
     value is used as an operand, it is sign-extended to the length of the 
     destination operand format.
     
-    ====== ======= ====== ====== ==============================================
-    Dest   Src     32-bit 64-bit Description
-    ====== ======= ====== ====== ==============================================
-    r/m8   imm8     \+     \+    Add immediate to register/memory
-    r/m16  imm8/16  \+     \+    r/m += imm
-    r/m32  imm8/32  \+    
-    r/m64  imm8/64         \+
-    ------ ------- ------ ------ ----------------------------------------------
-    ------ ------- ------ ------ ----------------------------------------------
-    r/m8   r/m8     \+     \+    Add register/memory to register/memory
-    r/m16  r/m16    \+     \+    r/m += r/m
-    r/m32  r/m32    \+           Note: only one operand may be a memory pointer 
-    r/m64  r/m64           \+
-    ====== ======= ====== ====== ==============================================
-
-    +-------+---------+-------+-------+----------------------------------------+
-    |Dest   |Src      |32-bit |64-bit |Description                             |
-    +=======+=========+=======+=======+========================================+
-    |       |         |       |       |                                        | 
-    | |r/m8 | |imm8   | | \+  | | \+  | |Add immediate to register or memory   |
-    | |r/m16| |imm8/16| | \+  | | \+  | |r/m += imm                            |
-    | |r/m32| |imm8/32| | \+  | |     | |                                      |
-    | |r/m64| |imm8/64| |     | | \+  | |                                      |
-    |       |         |       |       |                                        | 
-    +-------+---------+-------+-------+----------------------------------------+
-    | |r/m8 | |r8     | | \+  | | \+  | |Add register to register or memory    |
-    | |r/m16| |r16    | | \+  | | \+  | |r/m += r                              |
-    | |r/m32| |r32    | | \+  | |     | |                                      |
-    | |r/m64| |r64    | |     | | \+  | |                                      |
-    +-------+---------+-------+-------+----------------------------------------+
-    | |r8   | |r/m8   | | \+  | | \+  | |Add register or memory to register    |
-    | |r16  | |r/m16  | | \+  | | \+  | |r += r/m                              |
-    | |r32  | |r/m32  | | \+  | |     | |                                      |
-    | |r32  | |r/m64  | |     | | \+  | |                                      |
-    +-------+---------+-------+-------+----------------------------------------+
-    
+    ====== =============== ====== ====== ======================================
+    dst    src             32-bit 64-bit description
+    ====== =============== ====== ====== ======================================
+    r/m8   r/m8, imm8       X      X     dst += src
+    r/m16  r/m16, imm8/16   X      X     
+    r/m32  r/m32, imm8/32   X      X
+    r/m64  r/m64, imm8/64          X
+    ====== =============== ====== ====== ======================================
     """
     name = 'add'
     
@@ -315,6 +287,15 @@ class sub(Instruction):
     memory operands cannot be used in one instruction.) When an immediate value
     is used as an operand, it is sign-extended to the length of the destination
     operand format.
+    
+    ====== =============== ====== ====== ======================================
+    dst    src             32-bit 64-bit description
+    ====== =============== ====== ====== ======================================
+    r/m8   r/m8, imm8       X      X     dst -= src
+    r/m16  r/m16, imm8/16   X      X     
+    r/m32  r/m32, imm8/32   X      X     
+    r/m64  r/m64, imm8/64          X
+    ====== =============== ====== ====== ======================================
     """    
     name = 'sub'
     
@@ -358,6 +339,14 @@ class lea(Instruction):
     The source operand is a memory address (offset part) specified with one of
     the processors addressing modes; the destination operand is a general-
     purpose register.
+    
+    ========= =============== ====== ====== ======================================
+    dst       src             32-bit 64-bit description
+    ========= =============== ====== ====== ======================================
+    r16       m               X      X      Store src address in dst.
+    r32       m               X      X
+    r64       m                      X
+    ========= =============== ====== ====== ======================================
     """
     name = "lea"
 
@@ -383,6 +372,15 @@ class dec(Instruction):
     instruction allows a loop counter to be updated without disturbing the CF
     flag. (To perform a decrement operation that updates the CF flag, use a SUB
     instruction with an immediate operand of 1.)
+    
+    ====== ====== ====== ======================================
+    dst    32-bit 64-bit description
+    ====== ====== ====== ======================================
+    r/m8    X      X     dst -= 1
+    r/m16   X      X     
+    r/m32   X      X     
+    r/m64          X
+    ====== ====== ====== ======================================
     """
     name = "dec"
 
@@ -413,6 +411,15 @@ class inc(Instruction):
     instruction allows a loop counter to be updated without disturbing the CF
     flag. (Use a ADD instruction with an immediate operand of 1 to perform an
     increment operation that does updates the CF flag.)
+    
+    ====== ====== ====== ======================================
+    dst    32-bit 64-bit description
+    ====== ====== ====== ======================================
+    r/m8    X      X     dst += 1
+    r/m16   X      X     
+    r/m32   X      X     
+    r/m64          X
+    ====== ====== ====== ======================================
     """    
     name = "inc"
 
@@ -460,6 +467,22 @@ class imul(Instruction):
       immediate value). The intermediate product (twice the size of the first 
       source operand) is truncated and stored in the destination operand (a 
       general-purpose register).
+      
+    ====== =============== ====== ====== ======================================
+    dst    src             32-bit 64-bit description
+    ====== =============== ====== ====== ======================================
+    r16    r/m16           X      X      dst *= src
+    r32    r/m32           X      X     
+    r64    r/m64                  X
+    ====== =============== ====== ====== ======================================
+    
+    ====== ======= ======= ====== ====== ======================================
+    dst    src1     src2   32-bit 64-bit description
+    ====== ======= ======= ====== ====== ======================================
+    r16    r/m16   imm8/16 X      X      dst = src1 * src2
+    r32    r/m32   imm8/32 X      X     
+    r64    r/m64   imm8/64        X
+    ====== ======= ======= ====== ====== ======================================
     """
     name = "imul"
 
