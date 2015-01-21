@@ -48,7 +48,7 @@ def phexbin(code):
 def compare(instr):
     """Print instruction's code beside the output of GNU-as.
     
-    Accepts a single :class:`Instruction <pyca.asm.Instruction>` argument. This is used to determine the 
+    Accepts a single :class:`Instruction <pycca.asm.Instruction>` argument. This is used to determine the 
     machine code differences (hopefully there are none!) between the output
     of an Instruction and the equivalent output from the GNU assembler.
     """
@@ -62,9 +62,9 @@ def compare(instr):
             code2 = as_code(asm)
         except Exception as exc2:
             print(exc1.message)
-            print("[pyca and gnu-as both failed.]")
+            print("[pycca and gnu-as both failed.]")
             return
-        print("[pyca failed; gnu-as did not]")
+        print("[pycca failed; gnu-as did not]")
         phexbin(code2)
         raise
 
@@ -78,7 +78,7 @@ def compare(instr):
             print("[codes match]")
     except Exception as exc2:
         phexbin(code1)
-        print("[gnu-as failed; pyca did not]")
+        print("[gnu-as failed; pycca did not]")
         raise
 
     
@@ -141,7 +141,7 @@ def as_code(asm, quiet=False, check_invalid_reg=False, cache=False):
     architecture (by default, GNU-as silently ignores such symbols).
     
     If *cache* is True, then the result will be cached in 
-    ``pyca/asm/gnu_as_cache.pk`` to speed up subsequent requests for the same
+    ``pycca/asm/gnu_as_cache.pk`` to speed up subsequent requests for the same
     instruction.
     """
     # First try returning cached output

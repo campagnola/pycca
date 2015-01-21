@@ -1,7 +1,7 @@
 from pytest import raises
-from pyca.asm.parser import parse_asm
-from pyca.asm import *
-from pyca.asm.instruction import Label
+from pycca.asm.parser import parse_asm
+from pycca.asm import *
+from pycca.asm.instruction import Label
 
 
 def check_typs(code, typs):

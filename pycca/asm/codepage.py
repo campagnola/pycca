@@ -153,10 +153,10 @@ class WinPage(object):
 
 def mkfunction(code, namespace=None):
     """Convenience function that creates a 
-    :class:`CodePage <pyca.asm.CodePage>` from the supplied *code* argument 
+    :class:`CodePage <pycca.asm.CodePage>` from the supplied *code* argument 
     and returns a function pointing to the first byte of the compiled code. 
     
-    See :func:`CodePage.get_function() <pyca.asm.CodePage.get_function>`.
+    See :func:`CodePage.get_function() <pycca.asm.CodePage.get_function>`.
     """
     page = CodePage(code, namespace=namespace)
     return page.get_function()

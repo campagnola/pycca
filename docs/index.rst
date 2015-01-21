@@ -1,14 +1,14 @@
-.. pyca documentation master file, created by
+.. pycca documentation master file, created by
    sphinx-quickstart on Sun Jan 18 19:38:04 2015.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-PyCA Documentation
+PyCCA Documentation
 ==================
 
-PyCA provides compilers for C and x86 assembly that allow optimized routines
+PyCCA provides compilers for C and x86 assembly that allow optimized routines
 to be compiled and executed at runtime with no external dependencies.
-PyCA supports 32- and 64-bit intel/amd architectures on Linux, OSX, and 
+PyCCA supports 32- and 64-bit intel/amd architectures on Linux, OSX, and 
 Windows with python 2.7 or 3.4. 
 
 Current status: assembly compiler is beta, C compiler is alpha.
@@ -35,7 +35,7 @@ dependencies. Consequently, many Python developers avoid optimzed
 code, preferring instead to advertise "pure-python" as a feature
 of their packages.
 
-The objective of pyca is to provide a pure-python approach that
+The objective of pycca is to provide a pure-python approach that
 allows assembly and C functions to be compiled and executed at runtime
 with no external dependencies. 
 
@@ -43,7 +43,7 @@ with no external dependencies.
 Approach
 --------
 
-Pyca allows assembler code to be compiled and executed within Python 
+PyCCA allows assembler code to be compiled and executed within Python 
 with no external dependencies. This works by:
 
 1. Allocating a block of memory with execute privileges.

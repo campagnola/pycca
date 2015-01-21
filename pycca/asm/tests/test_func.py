@@ -1,4 +1,4 @@
-from pyca.asm import *
+from pycca.asm import *
 import ctypes
 
 

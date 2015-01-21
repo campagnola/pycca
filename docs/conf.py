@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# pyca documentation build configuration file, created by
+# pycca documentation build configuration file, created by
 # sphinx-quickstart on Sun Jan 18 19:38:04 2015.
 #
 # This file is execfile()d with the current directory set to its
@@ -48,7 +48,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'pyca'
+project = u'pycca'
 copyright = u'2015, Luke Campagnola'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -181,7 +181,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'pycadoc'
+htmlhelp_basename = 'pyccadoc'
 
 
 # -- Options for LaTeX output ---------------------------------------------
@@ -201,7 +201,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'pyca.tex', u'pyca Documentation',
+  ('index', 'pycca.tex', u'pycca Documentation',
    u'Luke Campagnola', 'manual'),
 ]
 
@@ -231,7 +231,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'pyca', u'pyca Documentation',
+    ('index', 'pycca', u'pycca Documentation',
      [u'Luke Campagnola'], 1)
 ]
 
@@ -245,8 +245,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'pyca', u'pyca Documentation',
-   u'Luke Campagnola', 'pyca', 'One line description of project.',
+  ('index', 'pycca', u'pycca Documentation',
+   u'Luke Campagnola', 'pycca', 'One line description of project.',
    'Miscellaneous'),
 ]
 

@@ -1,17 +1,17 @@
-PyCA Assembler
+PyCCA Assembler
 ==============
 
 
-The core of pyca is an x86 assembly compiler that allows the creation and 
+The core of pycca is an x86 assembly compiler that allows the creation and 
 execution of machine code for IA-32 and Intel-64 architectures. The output
-of pyca's assembler is tested to generate identical output to the GNU 
+of pycca's assembler is tested to generate identical output to the GNU 
 assembler for all supported instructions.
 
 
 Assembly Language
 -----------------
 
-Pyca's assembler uses a syntax and instruction mnemonics very similar to the 
+PyCCA's assembler uses a syntax and instruction mnemonics very similar to the 
 intel assembly syntax. Instructions consist of a mnemonic (instruction name) 
 followed by whitespace and a number of comma-separated operands::
     
@@ -27,7 +27,7 @@ It is also possible to write assembly code as a list of Instruction instances.
 This has the advantage of avoiding the parsing stage and facilitating
 dynamically-generated assembly code::
     
-    from pyca.asm import *
+    from pycca.asm import *
     
     code = [
         push(ebp),
@@ -51,7 +51,7 @@ providing the return and argument types::
     result = func(3.1415)
 
 For more examples of building and calling functions, accessing array data, and
-more, see `asm_examples.py <https://github.com/lcampagn/pyca/blob/master/asm_examples.py>`_. 
+more, see `asm_examples.py <https://github.com/lcampagn/pycca/blob/master/asm_examples.py>`_. 
 For lists of supported :ref:`instructions <instructions>` and 
 :ref:`registers <registers>`, see the :ref:`asm_api_ref`. 
 
@@ -59,20 +59,20 @@ For lists of supported :ref:`instructions <instructions>` and
 Differences with GNU-AS
 -----------------------
 
-Pyca's assembly is closely modeled after the intel assembler syntax and is
+PyCCA's assembly is closely modeled after the intel assembler syntax and is
 tested to produce identical output to the GNU assembler using the
 ".intel-mnemonic" directive. There are a few differences, however:
 
 * GAS quietly ignores undefined symbols, treating them as null pointers;
-  pyca will raise an exception.
-* GAS quietly truncates displacement values; pyca will raise an exception if
+  pycca will raise an exception.
+* GAS quietly truncates displacement values; pycca will raise an exception if
   the displacement is too large to be encoded.
 
 
 Adding support for new instructions
 -----------------------------------
 
-Although pyca currently supports only a small subset of the x86 instruction
+Although pycca currently supports only a small subset of the x86 instruction
 set, it is relatively simple to add support for new instructions by 
 transcribing the instruction encoding from the `intel reference (see volume 2) 
 <http://www.intel.com/content/www/us/en/processors/architectures-software-developer-manuals.html>`.
@@ -81,7 +81,7 @@ be accompanied by adequate documentation and unit tests.
 
 To add new instructions:
     
-* Look through ``pyca/asm/instructions.py`` for examples of already implemented
+* Look through ``pycca/asm/instructions.py`` for examples of already implemented
   instructions. 
 * Create a new subclass of Instruction and set the ``name`` class attribute to
   the instruction mnemonic.
@@ -106,10 +106,10 @@ To add new instructions:
   verbatim from the reference, but again this representation is not always
   consistent (in fact some instructions lack an operand encoding table
   altogether). 
-* Add a new test function to ``pyca/asm/test_asm.py``, using other instructions
+* Add a new test function to ``pycca/asm/test_asm.py``, using other instructions
   as examples. Each mode in the ``modes`` attribute should be tested at least 
   once.
-* For debugging, make use of tools in ``pyca.asm.util``, especially the 
+* For debugging, make use of tools in ``pycca.asm.util``, especially the 
   ``compare``, ``as_code``, and ``phexbin`` functions.
 
 Note that advanced CPU extensions such as SSE2 and AVX are not yet supported.
@@ -124,21 +124,21 @@ Assembly API Reference
 Building executable code
 ------------------------
 
-.. autofunction:: pyca.asm.mkfunction
+.. autofunction:: pycca.asm.mkfunction
 
-.. autoclass:: pyca.asm.CodePage
+.. autoclass:: pycca.asm.CodePage
     :members:
 
 For more examples of building and calling functions, accessing array data, and
-more, see `asm_examples.py <https://github.com/lcampagn/pyca/blob/master/asm_examples.py>`_. 
+more, see `asm_examples.py <https://github.com/lcampagn/pycca/blob/master/asm_examples.py>`_. 
 
 .. _registers:
 
 Supported registers
 -------------------
 
-All registers may be accessed as attributes of the ``pyca.asm`` or 
-``pyca.asm.register`` modules.
+All registers may be accessed as attributes of the ``pycca.asm`` or 
+``pycca.asm.register`` modules.
 
 +-------+---------------+--------------------------------+-----------------+
 |arch   |   32 / 64     |       64 only                  |     32/64       |
@@ -162,7 +162,7 @@ All registers may be accessed as attributes of the ``pyca.asm`` or
 |       |bh  |di  |edi  |rdi  |r15b  |r15w  |r15d  |r15  |st(0)|mm7  |xmm7 |
 +-------+----+----+-----+-----+------+------+------+-----+-----+-----+-----+
 
-.. automodule:: pyca.asm.register
+.. automodule:: pycca.asm.register
     :members:
 
 
@@ -171,23 +171,23 @@ All registers may be accessed as attributes of the ``pyca.asm`` or
 Supported instructions
 ----------------------
 
-.. automodule:: pyca.asm.instructions
+.. automodule:: pycca.asm.instructions
     :members:
 
 
 The Instruction class
 --------------------------
 
-.. autoclass:: pyca.asm.Instruction
+.. autoclass:: pycca.asm.Instruction
     :members:
 
 
 Debugging tools
 ---------------
 
-.. autofunction:: pyca.asm.util.compare
+.. autofunction:: pycca.asm.util.compare
 
-.. autofunction:: pyca.asm.util.as_code
+.. autofunction:: pycca.asm.util.as_code
 
-.. autofunction:: pyca.asm.util.phexbin
+.. autofunction:: pycca.asm.util.phexbin
 

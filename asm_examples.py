@@ -6,7 +6,7 @@ except ImportError:
     import array
     HAVE_NUMPY = False
 
-from pyca.asm import *
+from pycca.asm import *
 
 try:
     import faulthandler

@@ -1,4 +1,4 @@
-from pyca.cc import *
+from pycca.cc import *
 
 
 def test_func_return():

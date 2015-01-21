@@ -6,13 +6,13 @@ import os, sys
 
 # Make sure this version is the firts to import
 sys.path.insert(0, os.path.dirname(__file__))
-import pyca
+import pycca
 
 
 description = """\
-PyCA provides compilers for C and x86 assembly that allow optimized routines
+PyCCA provides compilers for C and x86 assembly that allow optimized routines
 to be compiled and executed at runtime with no external dependencies.
-PyCA supports 32- and 64-bit intel/amd architectures on Linux, OSX, and 
+PyCCA supports 32- and 64-bit intel/amd architectures on Linux, OSX, and 
 Windows with python 2.7 or 3.4. Current status: assembly compiler is beta, C
 compiler is alpha.
 """
@@ -26,21 +26,21 @@ def package_tree(pkgroot):
     return subdirs
 
 distutils.core.setup(
-    name='pyca',
-    version=pyca.__version__,
+    name='pycca',
+    version=pycca.__version__,
     author='Luke Campagnola',
     author_email='luke.campagnola@gmail.com',
     license='MIT',
-    url='http://github.com/lcampagn/pyca',
-    download_url='https://pypi.python.org/pypi/pyca',
+    url='http://github.com/lcampagn/pycca',
+    download_url='https://pypi.python.org/pypi/pycca',
     keywords="assembly C compiler inline performance optimization",
     description="Pure-python C and assembly compilers",
     long_description=description,
     platforms='any',
-    provides=['pyca'],
+    provides=['pycca'],
     install_requires=[],
-    packages=package_tree('pyca'),
-    package_dir={'pyca': 'pyca'},
+    packages=package_tree('pycca'),
+    package_dir={'pycca': 'pycca'},
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Science/Research',

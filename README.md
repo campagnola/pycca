@@ -1,4 +1,4 @@
-PYCA: Pure-python C and assembly compiler
+PyCCA: Pure-python C and assembly compiler
 =========================================
 
 Luke Campagnola, 2014
@@ -16,7 +16,7 @@ dependencies. Consequently, many Python developers avoid optimzed
 code, preferring instead to advertise "pure-python" as a feature
 of their packages.
 
-The objective of pyca is to provide a pure-python approach that
+The objective of pycca is to provide a pure-python approach that
 allows assembly and C functions to be compiled and executed at runtime
 with no external dependencies. 
 
@@ -24,7 +24,7 @@ with no external dependencies.
 Approach
 --------
 
-Pyca allows assembler code to be compiled and executed within Python 
+PyCCA allows assembler code to be compiled and executed within Python 
 with no external dependencies. This works by:
 
 1. Allocating a block of memory with execute privileges.
@@ -40,7 +40,7 @@ Status: beta
 * Can load executable machine code into memory pages
   and call this executable code via ctypes.
 * Functional assembly compiler with a relatively limited set of instructions
-  (see examples.py and pyca/asm/instructions.py). All instructions
+  (see examples.py and pycca/asm/instructions.py). All instructions
   are tested to produce identical output to the GNU assembly compiler.
 * C compiler in early development 
 * Examples have been tested on:
