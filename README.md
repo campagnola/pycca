@@ -1,5 +1,5 @@
-PyCCA: Pure-python C and assembly compiler
-=========================================
+PyCCA: Pure-python C compiler and assembler
+===========================================
 
 Luke Campagnola, 2014
 
