@@ -141,7 +141,7 @@ class call(RelBranchInstruction):
     }
         
     def __init__(self, addr):  # set method signature
-        Instruction.__init__(self, addr)
+        RelBranchInstruction.__init__(self, addr)
 
 
 #   Data moving instructions
@@ -906,7 +906,7 @@ class jmp(RelBranchInstruction):
     }
 
     def __init__(self, addr):  # set method signature
-        Instruction.__init__(self, addr)
+        RelBranchInstruction.__init__(self, addr)
 
 
 def _jcc(name, opcode, doc):
@@ -1003,6 +1003,6 @@ class syscall(Instruction):
         ((), ['0f05', None, True, True]),
     ])
 
-    def __init__(self, code):  # set method signature
-        Instruction.__init__(self, code)
+    def __init__(self):  # set method signature
+        Instruction.__init__(self)
 

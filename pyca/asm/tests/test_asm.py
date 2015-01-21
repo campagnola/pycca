@@ -15,7 +15,7 @@ for name,obj in list(globals().items()):
             regs.setdefault('gp', []).append(obj)
 
 
-def itest(instr):
+def itest(instr, shouldpass=None):
     """Generic instruction test: ensure that output of our function matches
     output of GNU assembler.
     
@@ -23,13 +23,14 @@ def itest(instr):
     as the last argument.
     """
     asm = str(instr)
-    
     def as_code_checkreg(asm):
         return as_code(asm, quiet=True, check_invalid_reg=True, cache=True)
     
     try:
         code1 = instr.code
+        assert shouldpass is not False
     except:
+        assert shouldpass is not True
         try:
             code2 = as_code_checkreg(asm)
         except:
@@ -259,10 +260,10 @@ def test_ret():
 
 def test_call():
     # relative calls
-    assert call(0x0) == as_code('call .+0x0')
-    assert call(-0x1000) == as_code('call .-0x1000')
+    assert call(0x0) == as_code('call .+0x0', cache=True)
+    assert call(-0x1000) == as_code('call .-0x1000', cache=True)
     code = call('label').code
-    assert code.compile({'label': 0x0, 'next_instr_addr': 5}) == as_code('label:\ncall label')
+    assert code.compile({'label': 0x0, 'next_instr_addr': 5}) == as_code('label:\ncall label', cache=True)
     
     # absolute calls
     itest(call(rax))
@@ -304,24 +305,22 @@ def test_inc():
     itest( inc(rax) )
 
 def test_imul():
-    itest( imul(ax, bp) )
-    itest( imul(eax, ebp) )
+    itest( imul(ax, bp), True)
+    itest( imul(eax, ebp), True)
     itest( imul(rax, rbp) )
     
-    itest( imul(ax, word([ebp])) )
-    itest( imul(eax, word([ebp])) )
-    itest( imul(rax, word([rbp])) )
+    itest( imul(ax, word([ebp])), True)
+    itest( imul(eax, dword([ebp])), True)
+    itest( imul(rax, qword([rbp])) )
     
     for imm in [0x2, 0x2000]:
-        itest( imul(ax, bp, imm) )
-        itest( imul(eax, ebp, imm) )
+        itest( imul(ax, bp, imm), True)
+        itest( imul(eax, ebp, imm), True)
         itest( imul(rax, rbp, imm) )
         
-        itest( imul(ax, word([ebp]), imm) )
-        itest( imul(eax, word([ebp]), imm) )
-        itest( imul(rax, word([rbp]), imm) )
-        
-        
+        itest( imul(ax, word([ebp]), imm), True)
+        itest( imul(eax, dword([ebp]), imm), True)
+        itest( imul(rax, qword([rbp]), imm) )
     
 def test_idiv():
     itest( idiv(ebp) )
@@ -397,7 +396,7 @@ def test_test():
 
 def test_jmp():
     itest( jmp(rax) )
-    assert jmp(0x1000) == as_code('jmp .+0x1000')    
+    assert jmp(0x1000) == as_code('jmp .+0x1000', cache=True)    
 
 def test_jcc():
     all_jcc = ('a,ae,b,be,c,e,z,g,ge,l,le,na,nae,nb,nbe,nc,ne,ng,nge,nl,nle,'
@@ -405,7 +404,7 @@ def test_jcc():
     for name in all_jcc:
         name = 'j' + name
         func = globals()[name]
-        assert func(0x1000) == as_code('%s .+0x1000' % name)
+        assert func(0x1000) == as_code('%s .+0x1000' % name, cache=True)
 
 
 # OS instructions

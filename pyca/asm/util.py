@@ -1,6 +1,6 @@
 # -'- coding: utf-8 -'-
 
-import os, re, sys, pickle, tempfile, subprocess
+import os, re, sys, pickle, tempfile, subprocess, atexit
 
 try:
     from __builtin__ import long
@@ -147,6 +147,7 @@ def as_code(asm, quiet=False, check_invalid_reg=False, cache=False):
     # First try returning cached output
     if cache:
         return as_code_cached(asm, quiet, check_invalid_reg)
+    print "cache miss:", asm
 
     # execute GAS, return compiled bytecode (or raise exception)
     code = b''
@@ -166,6 +167,8 @@ def as_code(asm, quiet=False, check_invalid_reg=False, cache=False):
 
 _as_code_cache = None
 def as_code_cached(asm, quiet, check_invalid_reg):
+    # return cached output of as_code(). This returns the compiled machine
+    # code or raises an exception with a cached error message.
     global _as_code_cache
     path = os.path.dirname(__file__)
     cachefile = os.path.join(path, 'gnu_as_cache.pk')
@@ -178,6 +181,7 @@ def as_code_cached(asm, quiet, check_invalid_reg):
                 _as_code_cache = pickle.load(open(cachefile, 'rb'), fix_imports=True)
         else:
             _as_code_cache = {'__counter__': 0}
+        atexit.register(write_as_code_cache)
     if key not in _as_code_cache:
         try:
             _as_code_cache[key] = (True, as_code(asm, quiet, check_invalid_reg, cache=False))
@@ -185,14 +189,10 @@ def as_code_cached(asm, quiet, check_invalid_reg):
             _as_code_cache[key] = (False, (err.message, err.output))
             raise
         finally:
-            cnt = (_as_code_cache['__counter__'] + 1) % 20
+            cnt = (_as_code_cache['__counter__'] + 1) % 100
             _as_code_cache['__counter__'] = cnt
             if cnt == 0:
-                if sys.version_info.major == 2:
-                    pk = pickle.dumps(_as_code_cache, protocol=0)
-                else:
-                    pk = pickle.dumps(_as_code_cache, protocol=0, fix_imports=True)
-                open(cachefile, 'wb').write(pk)
+                write_as_code_cache()
     ok, output = _as_code_cache[key]
     if ok:
         return output
@@ -200,6 +200,22 @@ def as_code_cached(asm, quiet, check_invalid_reg):
         err = Exception(output[0])
         err.output = output[1]
         raise err
+
+
+def write_as_code_cache():
+    # write the cache of as_code() results to disk. 
+    global _as_code_cache
+    path = os.path.dirname(__file__)
+    cachefile = os.path.join(path, 'gnu_as_cache.pk')
+    if sys.version_info.major == 2:
+        pk = pickle.dumps(_as_code_cache, protocol=0)
+    else:
+        pk = pickle.dumps(_as_code_cache, protocol=0, fix_imports=True)
+    try:
+        open(cachefile, 'wb').write(pk)
+    except IOError:
+        # probably no write permission; skip caching.
+        pass
 
 
 def all_registers():
