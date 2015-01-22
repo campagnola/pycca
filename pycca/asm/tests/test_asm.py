@@ -369,14 +369,43 @@ def test_fadd():
     itest( fadd(qword([rax])) )
     itest( fadd(st(0), st(4)) )
     itest( fadd(st(4), st(0)) )
-    
-def test_faddp():
     itest( faddp() )
     itest( faddp(st(4), st(0)) )
-    
-def test_fiadd():
     itest( fiadd(dword([rax])) )
     itest( fiadd(word([rax])) )
+    
+def test_fsub():
+    itest( fsub() )
+    itest( fsub(dword([rax])) )
+    itest( fsub(qword([rax])) )
+    itest( fsub(st(0), st(4)) )
+    itest( fsub(st(4), st(0)) )
+    itest( fsubp() )
+    itest( fsubp(st(4), st(0)) )
+    itest( fisub(dword([rax])) )
+    itest( fisub(word([rax])) )
+    
+def test_fmul():
+    itest( fmul() )
+    itest( fmul(dword([rax])) )
+    itest( fmul(qword([rax])) )
+    itest( fmul(st(0), st(4)) )
+    itest( fmul(st(4), st(0)) )
+    itest( fmulp() )
+    itest( fmulp(st(4), st(0)) )
+    itest( fimul(dword([rax])) )
+    itest( fimul(word([rax])) )
+    
+def test_fdiv():
+    itest( fdiv() )
+    itest( fdiv(dword([rax])) )
+    itest( fdiv(qword([rax])) )
+    itest( fdiv(st(0), st(4)) )
+    itest( fdiv(st(4), st(0)) )
+    itest( fdivp() )
+    itest( fdivp(st(4), st(0)) )
+    itest( fidiv(dword([rax])) )
+    itest( fidiv(word([rax])) )
     
     
     

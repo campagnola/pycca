@@ -829,7 +829,7 @@ class fadd(Instruction):
     ====== ======= ====== ====== ======================================================
            m32      X      X     ST(0) += src
            m64      X      X     
-    st(j)  st(i)    X      X     dst += src
+    st(j)  st(i)    X      X     dst += src  (at least one operand must be st(0))
     ====== ======= ====== ====== ======================================================
     """
     name = 'fadd'
@@ -915,9 +915,298 @@ class fiadd(Instruction):
 
 
 
+class fsub(Instruction):
+    """Subtracts the source operand from the destination operand and stores the
+    difference in the destination location. The destination operand is always 
+    an FPU data register; the source operand can be a register or a memory 
+    location. Source operands in memory can be in single-precision or 
+    double-precision floating-point format.
+    
+    ====== ======= ====== ====== ================================================
+    dst    src     32-bit 64-bit description
+    ====== ======= ====== ====== ================================================
+           m32      X      X     ST(0) -= src
+           m64      X      X     
+    st(j)  st(i)    X      X     dst -= src  (at least one operand must be st(0))
+    ====== ======= ====== ====== ================================================
+    """
+    name = 'fsub'
+
+    modes = collections.OrderedDict([
+        (('m32fp',), ('d8 /4', 'm', True, True)),
+        (('m64fp',), ('dc /4', 'm', True, True)),
+        
+        (('st(0)', 'st(i)'), ('d8e0+i', '-o', True, True)),
+        (('st(i)', 'st(0)'), ('dce8+i', 'o-', True, True)),
+        
+        ((), ('dee9', None, True, True)),  # no-operand version is same as fsubp
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o-': ['opcode +rd (r)', None],
+        '-o': [None, 'opcode +rd (r)'],
+    }
+
+    
+class fsubp(Instruction):
+    """The FSUBP instructions are similar to FSUB but perform the additional 
+    operation of popping the FPU register stack following the subtraction. To 
+    pop the register stack, the processor marks the ST(0) register as empty and
+    increments the stack pointer (TOP) by 1.
+    
+    ====== ======= ====== ====== ==============================================
+    dst    src     32-bit 64-bit description
+    ====== ======= ====== ====== ==============================================
+    st(i)  st(0)    X      X     dst -= st(0), pop st(0) from FP stack 
+                    X      X     st(1) -= st(0), pop st(0) from FP stack 
+    ====== ======= ====== ====== ==============================================
+    """
+    name = 'fsubp'
+
+    modes = collections.OrderedDict([
+        (('st(i)', 'st(0)'), ('dee8+i', 'o-', True, True)),
+        
+        ((), ('dee9', None, True, True)),
+    ])
+
+    operand_enc = {
+        'o-': ['opcode +rd (r)', None],
+    }
+    
+
+class fisub(Instruction):
+    """Subtracts the source operand from the destination operand and stores the
+    difference in the destination location. The destination operand is always 
+    an FPU data register; the source operand can be a register or a memory 
+    location. Source operands in memory can be in word or doubleword integer 
+    format.
+    
+    ======= ====== ====== ======================================================
+    src     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m32      X      X     ST(0) -= src
+    m64      X      X     
+    ======= ====== ====== ======================================================
+    """
+    name = 'fisub'
+
+    modes = collections.OrderedDict([
+        (('m32int',), ('da /4', 'm', True, True)),
+        (('m16int',), ('de /4', 'm', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
+    
+    def generate_code(self):
+        # Don't need 66h prefix for this instruction.
+        # todo: could this have been deduced from the 'm16int' sig?
+        if b'\x66' in self.prefixes:
+            self.prefixes.remove(b'\x66')
+        Instruction.generate_code(self)
+
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
+
+
+
+class fmul(Instruction):
+    """Multiplies the destination and source operands and stores the product in
+    the destination location. The destination operand is always an FPU data 
+    register; the source operand can be an FPU data register or a memory 
+    location. Source operands in memory can be in single-precision or 
+    double-precision floating-point format.
+    
+    ====== ======= ====== ====== ================================================
+    dst    src     32-bit 64-bit description
+    ====== ======= ====== ====== ================================================
+           m32      X      X     ST(0) *= src
+           m64      X      X     
+    st(j)  st(i)    X      X     dst *= src  (at least one operand must be st(0))
+    ====== ======= ====== ====== ================================================
+    """
+    name = 'fmul'
+
+    modes = collections.OrderedDict([
+        (('m32fp',), ('d8 /1', 'm', True, True)),
+        (('m64fp',), ('dc /1', 'm', True, True)),
+        
+        (('st(0)', 'st(i)'), ('d8c8+i', '-o', True, True)),
+        (('st(i)', 'st(0)'), ('dcc8+i', 'o-', True, True)),
+        
+        ((), ('dec9', None, True, True)),  # no-operand version is same as fmulp
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o-': ['opcode +rd (r)', None],
+        '-o': [None, 'opcode +rd (r)'],
+    }
+
+    
+class fmulp(Instruction):
+    """The FMULP instructions are similar to FMUL but perform the additional 
+    operation of popping the FPU register stack after storing the product. To 
+    pop the register stack, the processor marks the ST(0) register as empty and
+    increments the stack pointer (TOP) by 1.
+
+    ====== ======= ====== ====== ==============================================
+    dst    src     32-bit 64-bit description
+    ====== ======= ====== ====== ==============================================
+    st(i)  st(0)    X      X     dst *= st(0), pop st(0) from FP stack 
+                    X      X     st(1) *= st(0), pop st(0) from FP stack 
+    ====== ======= ====== ====== ==============================================
+    """
+    name = 'fmulp'
+
+    modes = collections.OrderedDict([
+        (('st(i)', 'st(0)'), ('dec8+i', 'o-', True, True)),
+        
+        ((), ('dec9', None, True, True)),
+    ])
+
+    operand_enc = {
+        'o-': ['opcode +rd (r)', None],
+    }
+    
+
+class fimul(Instruction):
+    """Multiplies the destination and source operands and stores the product in
+    the destination location. The destination operand is always an FPU data 
+    register; the source operand can be an FPU data register or a memory 
+    location. Source operands in memory can be in word or doubleword integer 
+    format.
+    
+    ======= ====== ====== ======================================================
+    src     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m32      X      X     ST(0) *= src
+    m64      X      X     
+    ======= ====== ====== ======================================================
+    """
+    name = 'fimul'
+
+    modes = collections.OrderedDict([
+        (('m32int',), ('da /1', 'm', True, True)),
+        (('m16int',), ('de /1', 'm', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
+    
+    def generate_code(self):
+        # Don't need 66h prefix for this instruction.
+        # todo: could this have been deduced from the 'm16int' sig?
+        if b'\x66' in self.prefixes:
+            self.prefixes.remove(b'\x66')
+        Instruction.generate_code(self)
+
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
+
+
+class fdiv(Instruction):
+    """Divides the destination operand by the source operand and stores the 
+    result in the destination location. The destination operand (dividend) is 
+    always in an FPU register; the source operand (divisor) can be a register 
+    or a memory location. Source operands in memory can be in single-precision
+    or double-precision floating-point format.
+    
+    ====== ======= ====== ====== ================================================
+    dst    src     32-bit 64-bit description
+    ====== ======= ====== ====== ================================================
+           m32      X      X     ST(0) /= src
+           m64      X      X     
+    st(j)  st(i)    X      X     dst /= src  (at least one operand must be st(0))
+    ====== ======= ====== ====== ================================================
+    """
+    name = 'fdiv'
+
+    modes = collections.OrderedDict([
+        (('m32fp',), ('d8 /6', 'm', True, True)),
+        (('m64fp',), ('dc /6', 'm', True, True)),
+        
+        (('st(0)', 'st(i)'), ('d8f0+i', '-o', True, True)),
+        (('st(i)', 'st(0)'), ('dcf8+i', 'o-', True, True)),
+        
+        ((), ('def9', None, True, True)),  # no-operand version is same as fmulp
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+        'o-': ['opcode +rd (r)', None],
+        '-o': [None, 'opcode +rd (r)'],
+    }
+
+    
+class fdivp(Instruction):
+    """The FDIVP instructions are similar to FDIV but perform the additional 
+    operation of popping the FPU register stack after storing the result. To 
+    pop the register stack, the processor marks the ST(0) register as empty and
+    increments the stack pointer (TOP) by 1.
+
+    ====== ======= ====== ====== ==============================================
+    dst    src     32-bit 64-bit description
+    ====== ======= ====== ====== ==============================================
+    st(i)  st(0)    X      X     dst /= st(0), pop st(0) from FP stack 
+                    X      X     st(1) /= st(0), pop st(0) from FP stack 
+    ====== ======= ====== ====== ==============================================
+    """
+    name = 'fdivp'
+
+    modes = collections.OrderedDict([
+        (('st(i)', 'st(0)'), ('def8+i', 'o-', True, True)),
+        
+        ((), ('def9', None, True, True)),
+    ])
+
+    operand_enc = {
+        'o-': ['opcode +rd (r)', None],
+    }
+    
+
+class fidiv(Instruction):
+    """Divides the destination operand by the source operand and stores the 
+    result in the destination location. The destination operand (dividend) is 
+    always in an FPU register; the source operand (divisor) can be a register 
+    or a memory location. Source operands in memory can be in word or 
+    doubleword integer format.
+    
+    ======= ====== ====== ======================================================
+    src     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m32      X      X     ST(0) /= src
+    m64      X      X     
+    ======= ====== ====== ======================================================
+    """
+    name = 'fidiv'
+
+    modes = collections.OrderedDict([
+        (('m32int',), ('da /6', 'm', True, True)),
+        (('m16int',), ('de /6', 'm', True, True)),
+    ])
+
+    operand_enc = {
+        'm': ['ModRM:r/m (r)'],
+    }
+    
+    def generate_code(self):
+        # Don't need 66h prefix for this instruction.
+        # todo: could this have been deduced from the 'm16int' sig?
+        if b'\x66' in self.prefixes:
+            self.prefixes.remove(b'\x66')
+        Instruction.generate_code(self)
+
+    def __init__(self, src):  # set method signature
+        Instruction.__init__(self, src)
+
+
 
 # Need:
-# fsub, fmul, fdiv, fsin, fcos, fptan, fpatan, fcom, 
+# fsin, fcos, fptan, fpatan, fcom, 
 # mul, or, and, andn, not, xor
 
 # avx/sse2 instructions

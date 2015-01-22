@@ -42,8 +42,8 @@ Status: beta
 * Functional assembly compiler with a relatively limited set of instructions
   (see examples.py and pycca/asm/instructions.py). All instructions
   are tested to produce identical output to the GNU assembly compiler.
-* C compiler in early development 
-* Examples have been tested on:
+* C compiler in early development
+* Assembly examples have been tested on:
 
   |           |            |  Linux  |   OSX   | Windows |
   |:----------|:-----------|:-------:|:-------:|:-------:|

@@ -147,7 +147,6 @@ def as_code(asm, quiet=False, check_invalid_reg=False, cache=False):
     # First try returning cached output
     if cache:
         return as_code_cached(asm, quiet, check_invalid_reg)
-    print "cache miss:", asm
 
     # execute GAS, return compiled bytecode (or raise exception)
     code = b''
