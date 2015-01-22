@@ -1320,8 +1320,123 @@ class fucomip(Instruction):
         Instruction.__init__(self, src1, src2)
 
 
+class addsd(Instruction):
+    """Adds the low double-precision floating-point values from the source 
+    operand (second operand) and the destination operand (first operand), and 
+    stores the double-precision floating-point result in the destination 
+    operand. The source operand can be an XMM register or a 64-bit memory 
+    location. The destination operand is an XMM register.
+    
+    ====== ================= ====== ====== ======================================
+    dst    src               32-bit 64-bit description
+    ====== ================= ====== ====== ======================================
+    xmm    xmm, m64           X      X     dst += src
+    ====== ================= ====== ====== ======================================
+    """
+    name = 'addsd'
+    
+    modes = collections.OrderedDict([
+        (('xmm1', 'xmm2/m64'),   ['f20f58 /r', 'rm', True, True, 'sse2']),
+    ])
+    
+    operand_enc = {
+        'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
+    }
+    
+    def __init__(self, dst, src):  # set method signature
+        Instruction.__init__(self, dst, src)
+
+
+class subsd(Instruction):
+    """Subtracts the low double-precision floating-point value in the source 
+    operand (second operand) from the low double-precision floating-point value
+    in the destination operand (first operand), and stores the double-precision
+    floating-point result in the destination operand. The source operand can be
+    an XMM register or a 64-bit memory location. The destination operand is an 
+    XMM register. The high quadword of the destination operand remains 
+    unchanged.
+    
+    ====== ================= ====== ====== ======================================
+    dst    src               32-bit 64-bit description
+    ====== ================= ====== ====== ======================================
+    xmm    xmm, m64           X      X     dst -= src
+    ====== ================= ====== ====== ======================================
+    """
+    name = 'subsd'
+    
+    modes = collections.OrderedDict([
+        (('xmm1', 'xmm2/m64'),   ['f20f5c /r', 'rm', True, True, 'sse2']),
+    ])
+    
+    operand_enc = {
+        'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
+    }
+    
+    def __init__(self, dst, src):  # set method signature
+        Instruction.__init__(self, dst, src)
+
+
+class mulsd(Instruction):
+    """Multiplies the low double-precision floating-point value in the source 
+    operand (second operand) by the low double-precision floating-point value 
+    in the destination operand (first operand), and stores the double-precision
+    floating- point result in the destination operand. The source operand can 
+    be an XMM register or a 64-bit memory location. The destination operand is 
+    an XMM register. The high quadword of the destination operand remains 
+    unchanged.
+    
+    ====== ================= ====== ====== ======================================
+    dst    src               32-bit 64-bit description
+    ====== ================= ====== ====== ======================================
+    xmm    xmm, m64           X      X     dst \*= src
+    ====== ================= ====== ====== ======================================
+    """
+    name = 'mulsd'
+    
+    modes = collections.OrderedDict([
+        (('xmm1', 'xmm2/m64'),   ['f20f59 /r', 'rm', True, True, 'sse2']),
+    ])
+    
+    operand_enc = {
+        'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
+    }
+    
+    def __init__(self, dst, src):  # set method signature
+        Instruction.__init__(self, dst, src)
+
+
+class divsd(Instruction):
+    """Divides the low double-precision floating-point value in the first 
+    source operand by the low double-precision floating-point value in the 
+    second source operand, and stores the double-precision floating-point 
+    result in the destination operand. The second source operand can be an XMM
+    register or a 64-bit memory location. The first source and destination
+    hyperons are XMM registers. The high quadword of the destination operand is
+    copied from the high quadword of the first source operand.
+    
+    ====== ================= ====== ====== ====================================
+    dst    src               32-bit 64-bit description
+    ====== ================= ====== ====== ====================================
+    xmm    xmm, m64           X      X     dst /= src
+    ====== ================= ====== ====== ====================================
+    """
+    name = 'divsd'
+    
+    modes = collections.OrderedDict([
+        (('xmm1', 'xmm2/m64'),   ['f20f5e /r', 'rm', True, True, 'sse2']),
+    ])
+    
+    operand_enc = {
+        'rm': ['ModRM:reg (w)', 'ModRM:r/m (r)'],
+    }
+    
+    def __init__(self, dst, src):  # set method signature
+        Instruction.__init__(self, dst, src)
+
+
+
 # Need:
-# fchs, fucompi, fxch
+# fchs, fxch
 # fsin, fcos, fptan, fpatan, fcom, 
 # mul, or, and, andn, not, xor
 
