@@ -4,6 +4,9 @@ PyCCA: Pure-python C compiler and assembler
 Luke Campagnola, 2014
 
 
+Documentation: http://pycca.readthedocs.org/en/latest/
+
+
 Motivation
 ----------
 
