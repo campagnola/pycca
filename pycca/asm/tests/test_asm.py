@@ -117,7 +117,8 @@ def test_instr_names():
         if isinstance(obj, type) and issubclass(obj, instructions.Instruction):
             if obj is instructions.Instruction or obj is instructions.RelBranchInstruction:
                 continue
-            args = (None,) * (obj.__init__.func_code.co_argcount - 1)
+            code = getattr(obj.__init__, 'func_code', getattr(obj.__init__, '__code__'))
+            args = (None,) * (code.co_argcount - 1)
             assert obj(*args).name == obj.__name__.rstrip('_')
 
 
