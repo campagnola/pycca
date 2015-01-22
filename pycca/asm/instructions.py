@@ -1019,13 +1019,13 @@ class fmul(Instruction):
     location. Source operands in memory can be in single-precision or 
     double-precision floating-point format.
     
-    ====== ======= ====== ====== ================================================
+    ====== ======= ====== ====== =================================================
     dst    src     32-bit 64-bit description
-    ====== ======= ====== ====== ================================================
-           m32      X      X     ST(0) *= src
+    ====== ======= ====== ====== =================================================
+           m32      X      X     ST(0) \*= src
            m64      X      X     
-    st(j)  st(i)    X      X     dst *= src  (at least one operand must be st(0))
-    ====== ======= ====== ====== ================================================
+    st(j)  st(i)    X      X     dst \*= src  (at least one operand must be st(0))
+    ====== ======= ====== ====== =================================================
     """
     name = 'fmul'
 
@@ -1055,8 +1055,8 @@ class fmulp(Instruction):
     ====== ======= ====== ====== ==============================================
     dst    src     32-bit 64-bit description
     ====== ======= ====== ====== ==============================================
-    st(i)  st(0)    X      X     dst *= st(0), pop st(0) from FP stack 
-                    X      X     st(1) *= st(0), pop st(0) from FP stack 
+    st(i)  st(0)    X      X     dst \*= st(0), pop st(0) from FP stack 
+                    X      X     st(1) \*= st(0), pop st(0) from FP stack 
     ====== ======= ====== ====== ==============================================
     """
     name = 'fmulp'
@@ -1082,7 +1082,7 @@ class fimul(Instruction):
     ======= ====== ====== ======================================================
     src     32-bit 64-bit description
     ======= ====== ====== ======================================================
-    m32      X      X     ST(0) *= src
+    m32      X      X     ST(0) \*= src
     m64      X      X     
     ======= ====== ====== ======================================================
     """
@@ -1204,12 +1204,129 @@ class fidiv(Instruction):
         Instruction.__init__(self, src)
 
 
+class fcomi(Instruction):
+    """Performs an unordered comparison of the contents of registers ST(0) and
+    ST(i) and sets the status flags ZF, PF, and CF in the EFLAGS register 
+    according to the results (see the table below). The sign of zero is ignored 
+    for comparisons, so that -0.0 is equal to +0.0.
+
+    ================== ==== ==== ====
+    Comparison         ZF   PF   CF
+    ================== ==== ==== ====
+    st(0) > st(i)       0    0    0
+    st(0) < st(i)       0    0    1
+    st(0) = st(i)       1    0    0
+    unordered           1    1    1
+    ================== ==== ==== ====
+    
+    
+    ======= ====== ====== ====== ==============================================
+    src1    src2   32-bit 64-bit description
+    ======= ====== ====== ====== ==============================================
+    st(0)   st(i)   X      X     
+    ======= ====== ====== ====== ==============================================
+    """
+    name = 'fcomi'
+
+    modes = collections.OrderedDict([
+        (('st(0)', 'st(i)'), ('dbf0+i', '-o', True, True)),
+    ])
+
+    operand_enc = {
+        '-o': [None, 'opcode +rd (r)'],
+    }
+
+    def __init__(self, src1, src2):  # set method signature
+        Instruction.__init__(self, src1, src2)
+
+
+class fcomip(Instruction):
+    """The FCOMIP instruction is similar to FCOMI but also pops the register 
+    stack following the comparison operation. To pop the register stack, the 
+    processor marks the ST(0) register as empty and increments the stack 
+    pointer (TOP) by 1.
+    
+    ======= ====== ====== ====== ==============================================
+    src1    src2   32-bit 64-bit description
+    ======= ====== ====== ====== ==============================================
+    st(0)   st(i)   X      X     
+    ======= ====== ====== ====== ==============================================
+    """
+    name = 'fcomip'
+
+    modes = collections.OrderedDict([
+        (('st(0)', 'st(i)'), ('dff0+i', '-o', True, True)),
+    ])
+
+    operand_enc = {
+        '-o': [None, 'opcode +rd (r)'],
+    }
+
+    def __init__(self, src1, src2):  # set method signature
+        Instruction.__init__(self, src1, src2)
+
+
+class fucomi(Instruction):
+    """The FUCOMI instruction performs the same operation as the FCOMI 
+    instruction. The only difference is that the FUCOMI instruction raises the
+    invalid-arithmetic-operand exception (#IA) only when either or both 
+    operands are an SNaN or are in an unsupported format; QNaNs cause the 
+    condition code flags to be set to unordered, but do not cause an exception
+    to be generated.
+    
+    ======= ====== ====== ====== ==============================================
+    src1    src2   32-bit 64-bit description
+    ======= ====== ====== ====== ==============================================
+    st(0)   st(i)   X      X     
+    ======= ====== ====== ====== ==============================================
+    """
+    name = 'fucomi'
+
+    modes = collections.OrderedDict([
+        (('st(0)', 'st(i)'), ('dbe8+i', '-o', True, True)),
+    ])
+
+    operand_enc = {
+        '-o': [None, 'opcode +rd (r)'],
+    }
+
+    def __init__(self, src1, src2):  # set method signature
+        Instruction.__init__(self, src1, src2)
+
+
+class fucomip(Instruction):
+    """The FUCOMIP instruction is similar to FUCOMI but also pops the register 
+    stack following the comparison operation. To pop the register stack, the 
+    processor marks the ST(0) register as empty and increments the stack 
+    pointer (TOP) by 1.
+    
+    ======= ====== ====== ====== ==============================================
+    src1    src2   32-bit 64-bit description
+    ======= ====== ====== ====== ==============================================
+    st(0)   st(i)   X      X     
+    ======= ====== ====== ====== ==============================================
+    """
+    name = 'fucomip'
+
+    modes = collections.OrderedDict([
+        (('st(0)', 'st(i)'), ('dfe8+i', '-o', True, True)),
+    ])
+
+    operand_enc = {
+        '-o': [None, 'opcode +rd (r)'],
+    }
+
+    def __init__(self, src1, src2):  # set method signature
+        Instruction.__init__(self, src1, src2)
+
 
 # Need:
+# fchs, fucompi, fxch
 # fsin, fcos, fptan, fpatan, fcom, 
 # mul, or, and, andn, not, xor
 
 # avx/sse2 instructions
+# addsd, subsd, mulsd, divsd, ...
 # movdq2q, movq2dq
 
 

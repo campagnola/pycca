@@ -3,6 +3,7 @@
 from pytest import raises
 from pycca.asm import *
 from pycca.asm.pointer import Pointer, rex, pack_int
+from pycca.asm import instructions
 
 # Catalog of registers
 regs = {}
@@ -109,6 +110,15 @@ def addresses(base):
                 continue
             yield [base + offset + disp]
             yield [base + offset*2 + disp]
+
+def test_instr_names():
+    for name in dir(instructions):
+        obj = getattr(instructions, name)
+        if isinstance(obj, type) and issubclass(obj, instructions.Instruction):
+            if obj is instructions.Instruction or obj is instructions.RelBranchInstruction:
+                continue
+            args = (None,) * (obj.__init__.func_code.co_argcount - 1)
+            assert obj(*args).name == obj.__name__.rstrip('_')
 
 
 def test_effective_address():
@@ -407,7 +417,12 @@ def test_fdiv():
     itest( fidiv(dword([rax])) )
     itest( fidiv(word([rax])) )
     
-    
+def test_fcomi():
+    for a,b in [(0, 0), (0, 5), (5, 5)]:
+        itest( fcomi(st(a), st(b)) )
+        itest( fcomip(st(a), st(b)) )
+        itest( fucomi(st(a), st(b)) )
+        itest( fucomip(st(a), st(b)) )
     
 
 # Testing instructions
