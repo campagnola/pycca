@@ -13,18 +13,15 @@ class push(Instruction):
     """Decrements the stack pointer and then stores the source operand on the 
     top of the stack.
     
-    ========== ====== ======
-    Operands   32-bit 64-bit
-    ========== ====== ======
-    m16        \+      \+
-    m32        \+    
-    m64               \+
-    r16        \+      \+
-    r32        \+    
-    r64               \+
-    imm8       \+      \+
-    imm32      \+      \+
-    ========== ====== ======
+    =============== ====== ====== ======================================
+    src             32-bit 64-bit description
+    =============== ====== ====== ======================================
+    r/m8             X      X     Push src onto stack
+    r/m16            X      X     
+    r/m32            X
+    r/m64                   X
+    imm8/32          X      X
+    =============== ====== ====== ======================================
     """
     name = 'push'
 
@@ -57,6 +54,15 @@ class pop(Instruction):
     
     The destination operand can be a general-purpose register, memory location,
     or segment register.
+    
+    =============== ====== ====== ======================================
+    dst             32-bit 64-bit description
+    =============== ====== ====== ======================================
+    r/m8             X      X     Pop value from stack into dst
+    r/m16            X      X     
+    r/m32            X
+    r/m64                   X
+    =============== ====== ====== ======================================
     """
     name = 'pop'
     
@@ -84,6 +90,13 @@ class ret(Instruction):
     Return; pop a value from the stack and branch to that address.
     Optionally, extra values may be popped from the stack after the return 
     address.
+    
+    =============== ====== ====== ======================================
+    size            32-bit 64-bit description
+    =============== ====== ====== ======================================
+    (no operands)    X      X     Return without touching stack
+    imm16            X      X     Pop *size* bytes from stack and return
+    =============== ====== ====== ======================================
     """
     name = 'ret'
     
@@ -100,7 +113,7 @@ class ret(Instruction):
 class leave(Instruction):
     """ LEAVE
     
-    High-level procedure exit.
+    High-level procedure exit. Accepts no operands.
     Equivalent to::
     
        mov(esp, ebp)
@@ -123,6 +136,15 @@ class call(RelBranchInstruction):
     The target operand specifies the address of the first instruction in the 
     called procedure. The operand can be an immediate value, a general-purpose 
     register, or a memory location.
+    
+    =============== ====== ====== =============================================
+    dst             32-bit 64-bit description
+    =============== ====== ====== =============================================
+    rel32            X      X     Call address relative to this instruction
+    r/m16            X            Call absolute address stored at r/m16/32/64
+    r/m32            X
+    r/m64                   X
+    =============== ====== ====== =============================================
     """
     name = "call"
     
@@ -156,6 +178,16 @@ class mov(Instruction):
     general-purpose register, segment register, or memory location. Both 
     operands must be the same size, which can be a byte, a word, a doubleword,
     or a quadword.
+    
+    ====== ================= ====== ====== ======================================
+    dst    src               32-bit 64-bit description
+    ====== ================= ====== ====== ======================================
+    r/m8   r/m8, imm8         X      X     Copy src value to dst
+    r/m16  r/m16, imm16       X      X     
+    r/m32  r/m32, imm32       X      X
+    r/m64  r/m64, imm32              X
+    r64    imm64                     X     
+    ====== ================= ====== ====== ======================================
     """
     name = 'mov'
     
@@ -203,6 +235,13 @@ class movsd(Instruction):
     64-bit memory location, or to move a double-precision floating-point value
     between the low quadwords of two XMM registers. The instruction cannot be
     used to transfer data between memory locations.
+    
+    ====== ================= ====== ====== ======================================
+    dst    src               32-bit 64-bit description
+    ====== ================= ====== ====== ======================================
+    xmm    xmm, m64           X      X     Copy xmm or m64 to xmm
+    m64    xmm                X      X     Copy xmm to m64
+    ====== ================= ====== ====== ======================================
     """
     name = 'movsd'
     
@@ -241,7 +280,7 @@ class add(Instruction):
     r/m8   r/m8, imm8       X      X     dst += src
     r/m16  r/m16, imm8/16   X      X     
     r/m32  r/m32, imm8/32   X      X
-    r/m64  r/m64, imm8/64          X
+    r/m64  r/m64, imm8/32          X
     ====== =============== ====== ====== ======================================
     """
     name = 'add'
@@ -446,7 +485,8 @@ class imul(Instruction):
     """Performs a signed multiplication of two operands. This instruction has 
     three forms, depending on the number of operands.
     
-    * One-operand form — This form is identical to that used by the MUL 
+    * One-operand form — **[Not currently supported by pycca]**
+      This form is identical to that used by the MUL 
       instruction. Here, the source operand (in a general-purpose register or 
       memory location) is multiplied by the value in the AL, AX, EAX, or RAX 
       register (depending on the operand size) and the product (twice the size
@@ -459,6 +499,14 @@ class imul(Instruction):
       is an immediate value, a general-purpose register, or a memory location. 
       The intermediate product (twice the size of the input operand) is 
       truncated and stored in the destination operand location.
+      
+      ====== =============== ====== ====== ======================================
+      dst    src             32-bit 64-bit description
+      ====== =============== ====== ====== ======================================
+      r16    r/m16           X      X      dst \*= src
+      r32    r/m32           X      X     
+      r64    r/m64                  X
+      ====== =============== ====== ====== ======================================
     
     * Three-operand form — This form requires a destination operand (the first
       operand) and two source operands (the second and the third operands).
@@ -468,21 +516,13 @@ class imul(Instruction):
       source operand) is truncated and stored in the destination operand (a 
       general-purpose register).
       
-    ====== =============== ====== ====== ======================================
-    dst    src             32-bit 64-bit description
-    ====== =============== ====== ====== ======================================
-    r16    r/m16           X      X      dst *= src
-    r32    r/m32           X      X     
-    r64    r/m64                  X
-    ====== =============== ====== ====== ======================================
-    
-    ====== ======= ======= ====== ====== ======================================
-    dst    src1     src2   32-bit 64-bit description
-    ====== ======= ======= ====== ====== ======================================
-    r16    r/m16   imm8/16 X      X      dst = src1 * src2
-    r32    r/m32   imm8/32 X      X     
-    r64    r/m64   imm8/64        X
-    ====== ======= ======= ====== ====== ======================================
+      ====== ======= ======= ====== ====== ======================================
+      dst    src1     src2   32-bit 64-bit description
+      ====== ======= ======= ====== ====== ======================================
+      r16    r/m16   imm8/16 X      X      dst = src1 \* src2
+      r32    r/m32   imm8/32 X      X     
+      r64    r/m64   imm8/64        X
+      ====== ======= ======= ====== ====== ======================================
     """
     name = "imul"
 
@@ -512,6 +552,15 @@ class idiv(Instruction):
     DX:AX, or EDX:EAX registers. The source operand can be a general-purpose 
     register or a memory location. The action of this instruction depends on 
     the operand size (dividend/divisor).
+   
+    ======= ====== ====== ======================================================
+    src     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    r/m8    X      X      Divide AX by src, set AL=quotient, AH=remainder
+    r/m16   X      X      Divide DX:AX by src, set AX=quotient, DX=remainder
+    r/m32   X      X      Divide EDX:EAX by src, set EAX=quotient, EDX=remainder
+    r/m64          X      Divide RDX:RAX by src, set RAX=quotient, RDX=remainder
+    ======= ====== ====== ======================================================
     """
     name = "idiv"
 
@@ -539,6 +588,15 @@ class fld(Instruction):
     single-precision or double-precision floating-point format, it is 
     automatically converted to the double extended-precision floating-point 
     format before being pushed on the stack.
+    
+    ======= ====== ====== ======================================================
+    src     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m32      X      X     Push 32 bit float at src onto FPU stack
+    m64      X      X     Push 64 bit float at src onto FPU stack
+    m80      X      X     Push 80 bit float at src onto FPU stack
+    ST(i)    X      X     Push float at ST(i) onto FPU stack
+    ======= ====== ====== ======================================================
     """
     name = 'fld'
     
@@ -565,12 +623,22 @@ class fst(Instruction):
     
     When storing the value in memory, the value is converted to 
     single-precision or double-precision floating-point format.
+    
+    ======= ====== ====== ======================================================
+    dst     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m32      X      X     Store ST(0) to 32 bit float at dst
+    m64      X      X     Store ST(0) to 64 bit float at dst
+    m80      X      X     Store ST(0) to 80 bit float at dst
+    ST(i)           X     Store ST(0) to ST(i)
+    ======= ====== ====== ======================================================
     """
     name = 'fst'
     
     modes = collections.OrderedDict([
         (('m32fp',), ('d9 /2', 'm', True, True)),
         (('m64fp',), ('dd /2', 'm', True, True)),
+        (('m80fp',), ('db /7', 'm', True, True)),
         (('ST(i)',), ('ddd0+i', 'o', True, True)),
     ])
 
@@ -590,6 +658,15 @@ class fstp(Instruction):
     To pop the register stack, the processor marks the ST(0) register as empty 
     and increments the stack pointer (TOP) by 1. The FSTP instruction can also 
     store values in memory in double extended-precision floating-point format.
+    
+    ======= ====== ====== ======================================================
+    dst     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m32      X      X     Pop ST(0) to 32 bit float at dst
+    m64      X      X     Pop ST(0) to 64 bit float at dst
+    m80      X      X     Pop ST(0) to 80 bit float at dst
+    ST(i)           X     Pop ST(0) to ST(i)
+    ======= ====== ====== ======================================================
     """
     name = 'fstp'
     
@@ -617,6 +694,14 @@ class fild(Instruction):
     The source operand can be a word, doubleword, or quadword integer. It is 
     loaded without rounding errors. The sign of the source operand is 
     preserved.
+    
+    ======= ====== ====== ======================================================
+    src     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m16      X      X     Push 16 bit int at src onto FPU stack
+    m32      X      X     Push 32 bit int at src onto FPU stack
+    m64      X      X     Push 64 bit int at src onto FPU stack
+    ======= ====== ====== ======================================================
     """
     name = 'fild'
     
@@ -648,6 +733,13 @@ class fist(Instruction):
     Values can be stored in word or doubleword integer format. The destination 
     operand specifies the address where the first byte of the destination value
     is to be stored.
+    
+    ======= ====== ====== ======================================================
+    dst     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m16      X      X     Store ST(0) to 16 bit signed int at dst
+    m32      X      X     Store ST(0) to 32 bit signed int at dst
+    ======= ====== ====== ======================================================
     """
     name = 'fist'
     
@@ -678,6 +770,14 @@ class fistp(Instruction):
     To pop the register stack, the processor marks the ST(0) register as empty 
     and increments the stack pointer (TOP) by 1. The FISTP instruction also 
     stores values in quadword integer format.
+    
+    ======= ====== ====== ======================================================
+    dst     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m16      X      X     Store ST(0) to 16 bit signed int at dst
+    m32      X      X     Store ST(0) to 32 bit signed int at dst
+    m64      X      X     Store ST(0) to 64 bit signed int at dst
+    ======= ====== ====== ======================================================
     """
     name = 'fistp'
     
@@ -704,7 +804,7 @@ class fistp(Instruction):
 
 class fabs(Instruction):
     """Clears the sign bit of ST(0) to create the absolute value of the 
-    operand.
+    operand. Accepts no operands.
     """
     name = 'fabs'
 
@@ -723,6 +823,14 @@ class fadd(Instruction):
     The destination operand is always an FPU register; the source operand can 
     be a register or a memory location. Source operands in memory can be in 
     single-precision or double-precision floating-point format.
+    
+    ====== ======= ====== ====== ======================================================
+    dst    src     32-bit 64-bit description
+    ====== ======= ====== ====== ======================================================
+           m32      X      X     ST(0) += src
+           m64      X      X     
+    st(j)  st(i)    X      X     dst += src
+    ====== ======= ====== ====== ======================================================
     """
     name = 'fadd'
 
@@ -751,6 +859,13 @@ class faddp(Instruction):
     register stack after storing the result. To pop the register stack, the 
     processor marks the ST(0) register as empty and increments the stack 
     pointer (TOP) by 1.
+    
+    ====== ======= ====== ====== ==============================================
+    dst    src     32-bit 64-bit description
+    ====== ======= ====== ====== ==============================================
+    st(i)  st(0)    X      X     dst += st(0), pop st(0) from FP stack 
+                    X      X     st(1) += st(0), pop st(0) from FP stack 
+    ====== ======= ====== ====== ==============================================
     """
     name = 'faddp'
 
@@ -769,6 +884,13 @@ class fiadd(Instruction):
     """The FIADD instructions are similar to FADD, but convert an integer 
     source operand to double extended-precision floating-point format before 
     performing the addition.
+    
+    ======= ====== ====== ======================================================
+    src     32-bit 64-bit description
+    ======= ====== ====== ======================================================
+    m32      X      X     ST(0) += src
+    m64      X      X     
+    ======= ====== ====== ======================================================
     """
     name = 'fiadd'
 
@@ -814,6 +936,15 @@ class cmp(Instruction):
     first operand and then setting the status flags in the same manner as the
     SUB instruction. When an immediate value is used as an operand, it is 
     sign-extended to the length of the first operand.
+    
+    ====== =============== ====== ====== ======================================
+    src1   src2            32-bit 64-bit description
+    ====== =============== ====== ====== ======================================
+    r/m8   r/m8, imm8       X      X     
+    r/m16  r/m16, imm8/16   X      X     
+    r/m32  r/m32, imm8/32   X      X
+    r/m64  r/m64, imm8/32          X
+    ====== =============== ====== ====== ======================================
     """
     name = "cmp"
     
@@ -844,14 +975,23 @@ class cmp(Instruction):
         'mi': ['ModRM:r/m (r,w)', 'imm8/16/32'],
     }
 
-    def __init__(self, a, b):  # set method signature
-        Instruction.__init__(self, a, b)
+    def __init__(self, src1, src2):  # set method signature
+        Instruction.__init__(self, src1, src2)
 
 
 class test(Instruction):
     """Computes the bit-wise logical AND of first operand (source 1 operand) 
     and the second operand (source 2 operand) and sets the SF, ZF, and PF 
     status flags according to the result. The result is then discarded.
+    
+    ====== =============== ====== ====== ======================================
+    src1   src2            32-bit 64-bit description
+    ====== =============== ====== ====== ======================================
+    r/m8   r8, imm8         X      X     
+    r/m16  r16, imm8/16     X      X     
+    r/m32  r32, imm8/32     X      X
+    r/m64  r64, imm8/32            X
+    ====== =============== ====== ====== ======================================
     """
     name = "test"
     
@@ -886,10 +1026,20 @@ class jmp(RelBranchInstruction):
     without recording return information. The destination (target) operand 
     specifies the address of the instruction being jumped to. This operand can 
     be an immediate value, a general-purpose register, or a memory location.
+    
+    ====== ====== ====== ===============================================
+    dst    32-bit 64-bit description
+    ====== ====== ====== ===============================================
+    imm8    X      X     Jump to address relative to current instruction     
+    imm16   X           
+    imm32   X      X
+    r/m16   X            Jump to absolute address stored in r/m
+    r/m32   X
+    r/m64          X
+    ====== ====== ====== ===============================================
     """
     name = "jmp"
     
-    # generate absolute call
     modes = {
         ('rel8',): ['eb', 'i', True, True],
         ('rel16',): ['e9', 'i', False, True],
@@ -922,9 +1072,10 @@ def _jcc(name, opcode, doc):
         'i': ['imm32'],
     }
 
+    d = " Accepts an immediate address relative to the current instruction."
     return type(name, (RelBranchInstruction,), {'modes': modes, 
                                                 'operand_enc': op_enc,
-                                                '__doc__': doc}) 
+                                                '__doc__': doc + d}) 
 
 
 ja   = _jcc('ja',   '0f87', """Jump near if above (CF=0 and ZF=0).""")
@@ -971,6 +1122,12 @@ class int_(Instruction):
     value. Each vector provides an index to a gate descriptor in the IDT. The 
     first 32 vectors are reserved by Intel for system use. Some of these 
     vectors are used for internally generated exceptions.
+    
+    ====== ====== ====== ======================================
+    dst    32-bit 64-bit description
+    ====== ====== ====== ======================================
+    imm8    X      X     
+    ====== ====== ====== ======================================
     """
     name = 'int'
     
@@ -996,6 +1153,8 @@ class syscall(Instruction):
     IA32_FMASK MSR (MSR address C0000084H); specifically, the processor clears
     in RFLAGS every bit corresponding to a bit that is set in the IA32_FMASK
     MSR.
+    
+    Accepts no operands.
     """
     name = 'syscall'
     

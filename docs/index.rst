@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 PyCCA Documentation
-==================
+===================
 
 PyCCA provides compilers for C and x86 assembly that allow optimized routines
 to be compiled and executed at runtime with no external dependencies.
