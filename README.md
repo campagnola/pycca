@@ -4,7 +4,9 @@ PyCCA: Pure-python C compiler and assembler
 Luke Campagnola, 2014
 
 
-Documentation: http://pycca.readthedocs.org/en/latest/
+> Documentation: http://pycca.readthedocs.org/en/latest/<br>
+> Source: http://github.com/pycca/pycca<br>
+> Installation: `pip install pycca`
 
 
 Motivation
@@ -37,8 +39,12 @@ with no external dependencies. This works by:
    points to the compiled machine code. 
 
 
-Status: beta
-------------
+Status
+------
+
+|  **C compiler:** |  **alpha**  |
+|------------------|-------------|
+|  **Assembler:**  |  **beta**   |
 
 * Can load executable machine code into memory pages
   and call this executable code via ctypes.
