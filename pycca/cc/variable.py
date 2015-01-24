@@ -2,9 +2,13 @@
 from ..asm import Register, Pointer
 
 
+types = ['int', 'double']
+
 class Variable(object):
     def __init__(self, type, name, init=None, addr=None, reg=None):
         self.type = type
+        if type not in types:
+            raise TypeError('Invalid data type "%s"' % type)
         self.name = name
         self.init = init
         

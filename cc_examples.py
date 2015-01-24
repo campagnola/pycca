@@ -2,14 +2,15 @@
 import numpy as np
 from pycca.cc import CCode, Function, Assign, Return
 
+expr = '(x + 1) * 2'
 code = CCode([
-    Function('int', 'add_one', [('int', 'x')], [
-        Assign(x='x + 1'),
+    Function('int', 'eval_expr', [('int', 'x')], [
+        Assign(x=expr),
         Return('x')
     ])
 ])
 print code.dump_asm()
-print "3 + 1 = %d" % code.add_one(3)
+print '%s = %s' % (expr, code.eval_expr(3))
 
 
 c = CCode([Function('double', 'fn', [], [Return(12.3)]) ])

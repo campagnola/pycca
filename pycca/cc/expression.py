@@ -62,6 +62,16 @@ class Expression(CodeObject):
         elif group.op == '+':
             code.append(asm.add(*ops))
             location = ops[0]
+        elif group.op == '-':
+            code.append(asm.sub(*ops))
+            location = ops[0]
+        elif group.op == '+':
+            code.append(asm.add(*ops))
+            location = ops[0]
+        elif group.op == '+':
+            code.append(asm.add(*ops))
+            location = ops[0]
+            
         else:
             raise NotImplementedError('operand: %s' % group.op)
             
