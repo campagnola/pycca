@@ -1,83 +1,78 @@
 import struct, re
 from .variable import Variable
-from .codeobject import CodeObject, CodeContainer
 from .. import asm
 
 
-class Expression(CodeObject):
+class Expression(object):
     def __init__(self, expr):
-        CodeObject.__init__(self)
         self.expr = expr
         self.type = None
         # name introduced into scope to reference the result of this expression
         #self.name = "%s_%x" % (self.__class__.__name__, id(self))
         
-    def compile(self, scope):
+    def compile(self, state):
         if isinstance(self.expr, (int, float)):
             tokens = [self.expr]
         else:
-            tokens = self._tokenize(scope)
+            tokens = self._tokenize(state)
         #return tokens
         groups = self._group(tokens)
         self.type = groups.type
         #return groups
-        code, location = self._compile_subexpr(groups, scope)
-        #scope[self.name] = Variable('int', self.name, reg=location)
-        self.location = location
-        
-        return code
+        var = self._compile_subexpr(groups, state)
+        return var
     
-    def _compile_subexpr(self, group, scope):
+    def _compile_subexpr(self, group, state):
         code = []
         args = group.args
-        ops = []
+        operands = []
         
         for arg in args:
             if arg is None:
                 continue
             if isinstance(arg, TokGrp):
-                c, loc = self._compile_subexpr(arg, scope)
-                code.extend(c)
-                ops.append(loc)
+                var = self._compile_subexpr(arg, state)
+                operands.append(var)
             elif isinstance(arg, Variable):
-                ops.append(arg.location)
+                operands.append(arg)
             else:
-                ops.append(arg)
+                raise TypeError("Invalid expression operand : %r" % arg)
         
-        if group.op is None and len(ops) == 1:
-            if isinstance(ops[0], (asm.Register, asm.Pointer)):
-                location = ops[0]
-            elif isinstance(ops[0], int):
-                code.append(asm.mov(asm.rax, ops[0]))
+        if group.op is None and len(operands) == 1:
+            if isinstance(operands[0].location, (asm.Register, asm.Pointer)):
+                location = operands[0]
+            elif isinstance(operands[0], int):
+                code.append(asm.mov(asm.rax, operands[0]))
                 location = asm.rax
-            elif isinstance(ops[0], float):
+            elif isinstance(operands[0], float):
                 code.extend([
-                    asm.mov(asm.rax, struct.pack('d', ops[0])),
+                    asm.mov(asm.rax, struct.pack('d', operands[0])),
                     asm.mov([asm.rsp-8], asm.rax),
                     asm.movsd(asm.xmm0, [asm.rsp-8])
                 ])
                 location = asm.xmm0
             else:
-                raise TypeError("Unsupported expression type:", ops[0])
+                raise TypeError("Unsupported expression type:", operands[0])
         elif group.op == '+':
-            code.append(asm.add(*ops))
-            location = ops[0]
+            code.append(asm.add(*operands))
+            location = operands[0]
         elif group.op == '-':
-            code.append(asm.sub(*ops))
-            location = ops[0]
+            code.append(asm.sub(*operands))
+            location = operands[0]
         elif group.op == '+':
-            code.append(asm.add(*ops))
-            location = ops[0]
+            code.append(asm.add(*operands))
+            location = operands[0]
         elif group.op == '+':
-            code.append(asm.add(*ops))
-            location = ops[0]
+            code.append(asm.add(*operands))
+            location = operands[0]
             
         else:
             raise NotImplementedError('operand: %s' % group.op)
-            
-        return code, location
+        
+        state.add_code(code)
+        return Variable(type='int', location=location)
     
-    def _tokenize(self, scope):
+    def _tokenize(self, state):
         # Parse expression into tokens
         tokens = []
         expr = self.expr
@@ -89,7 +84,7 @@ class Expression(CodeObject):
                 continue
             m = re.match(r'([a-zA-Z_][a-zA-Z0-9_]*)(.*)', expr)
             if m is not None:
-                tokens.append(scope[m.groups()[0]])
+                tokens.append(state.get_var(m.groups()[0]))
                 expr = m.groups()[1]
                 continue
             m = re.match(r'(-?(([0-9]+(\.[0-9]*)?)|(([0-9]*\.)?[0-9]+))(e-?[0-9]+)?)(.*)', expr)

@@ -5,15 +5,24 @@ from ..asm import Register, Pointer
 types = ['int', 'double']
 
 class Variable(object):
-    def __init__(self, type, name, init=None, addr=None, reg=None):
+    def __init__(self, type, name=None, init=None, addr=None, reg=None, location=None):
         self.type = type
         if type not in types:
             raise TypeError('Invalid data type "%s"' % type)
         self.name = name
         self.init = init
         
+        if isinstance(location, Register):
+            assert reg is None
+            reg = location
+        elif isinstance(location, int):
+            assert addr is None
+            addr = location
+        
         self.reg = reg
         self.addr = addr
+            
+            
 
     @property
     def location(self):
