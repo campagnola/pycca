@@ -53,7 +53,6 @@ class Expression(object):
               isinstance(operands[1], Constant)):
             fn = {'+': operator.add, '-': operator.sub}[group.op]
             val = fn(operands[0].init, operands[1].init)
-            print operands[0].init, operands[1].init, val
             return Constant(val, group.type)
         elif group.op == '+':
             code.append(asm.add(*operands))
@@ -103,7 +102,7 @@ class Expression(object):
     def _group(self, tokens):
         # parse a list of tokens into nested groups containing no more than
         # one operand per group.
-        op_order =  '*/+-'
+        op_order = {'*': 1, '/': 1, '+': 2, '-': 2}
         unary_ops = '-'
         
         group = TokGrp()
@@ -126,7 +125,7 @@ class Expression(object):
                 else:
                     # need a new group. Decide how to handle nesting:
                     
-                    if op_order.index(group.op) > op_order.index(tok):
+                    if op_order[group.op] > op_order[tok]:
                         # insert new group inside current group
                         newgrp = TokGrp(op=tok, arg1=group.args[1], parent=group)
                         group.args[1] = newgrp

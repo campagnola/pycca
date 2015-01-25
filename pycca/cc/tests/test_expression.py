@@ -32,4 +32,7 @@ def test_imm():
     assert v.init == 11
     assert v.name == None
 
-    
+def test_op_order():
+    assert cc_expr('5 - 7 + 3').init == 1
+    assert cc_expr('5 - (7 + 3)').init == -5
+    assert cc_expr('(5 - 7) + 3').init == 1
