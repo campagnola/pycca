@@ -21,8 +21,6 @@ class Variable(object):
         
         self.reg = reg
         self.addr = addr
-            
-            
 
     @property
     def location(self):
@@ -31,14 +29,46 @@ class Variable(object):
         elif self.addr is not None:
             return self.addr
         else:
-            raise RuntimeError("Variable %s has no location." % self.name)
+            return None
         
     def set_location(self, loc):
         if isinstance(loc, Register):
             self.reg = loc
-        
         else:
-            raise TypeError("Currently only reg supported for set_location.")
+            raise TypeError("Invalid variable location: %r" % loc)
+
+    def get_location(self, state):
+        """Return location of this variable.
+        
+        If the variable has no location, then the machine state is modified 
+        to generate a location.
+        """
+        loc = self.location
+        if loc is not None:
+            return loc
+        if self.init is None:
+            raise RuntimeError("%r has no location or value." % self)
+        
+        if self.type == 'int':
+            reg = state.free_register()
+            state.add_code([asm.mov(reg, self.init)])
+            return reg
+        else:
+            raise NotImplementedError()
 
     def __repr__(self):
-        return self.name
+        return '%s(name=%s, loc=%s, init=%s)' % (self.__class__.__name__, 
+                                                 self.name, self.location, 
+                                                 self.init)
+    
+    
+class Constant(Variable):
+    def __init__(self, value, type=None):
+        if type is None:
+            if isinstance(value, (int, long)):
+                type = 'int'
+            elif isinstance(value, float):
+                type = 'double'
+            
+        Variable.__init__(self, name=None, type=type, init=value)
+

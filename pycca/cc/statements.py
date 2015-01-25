@@ -96,8 +96,8 @@ class Assign(CodeObject):
         code = []
         for name, expr in self.assignments.items():
             expr = Expression(expr)
-            code.extend(expr.compile(state))
-            state.get_var(name).set_location(expr.location)
+            result = expr.compile(state)
+            state.get_var(name).set_location(result.get_location(state))
         state.add_code(code)
 
 

@@ -1,28 +1,36 @@
-import struct, re
-from .variable import Variable
+import struct, re, operator
+from .variable import Variable, Constant
 from .. import asm
 
 
 class Expression(object):
     def __init__(self, expr):
         self.expr = expr
-        self.type = None
-        # name introduced into scope to reference the result of this expression
-        #self.name = "%s_%x" % (self.__class__.__name__, id(self))
         
     def compile(self, state):
+        """Compile this expression, adding code to the MachineState as needed.
+        
+        Return a Variable containing the result of the expression.
+        """
+        
+        # First tokenize the expression string
         if isinstance(self.expr, (int, float)):
             tokens = [self.expr]
         else:
             tokens = self._tokenize(state)
         #return tokens
+        
+        # next group the tokens into a hierarchy of operators & operands.
         groups = self._group(tokens)
-        self.type = groups.type
         #return groups
-        var = self._compile_subexpr(groups, state)
-        return var
+        
+        # finally, compile the hierarchy in order and return the result
+        return self._compile_subexpr(groups, state)
     
     def _compile_subexpr(self, group, state):
+        """Compile a sub-expression and return a Variable containing the 
+        output.
+        """
         code = []
         args = group.args
         operands = []
@@ -39,38 +47,28 @@ class Expression(object):
                 raise TypeError("Invalid expression operand : %r" % arg)
         
         if group.op is None and len(operands) == 1:
-            if isinstance(operands[0].location, (asm.Register, asm.Pointer)):
-                location = operands[0]
-            elif isinstance(operands[0], int):
-                code.append(asm.mov(asm.rax, operands[0]))
-                location = asm.rax
-            elif isinstance(operands[0], float):
-                code.extend([
-                    asm.mov(asm.rax, struct.pack('d', operands[0])),
-                    asm.mov([asm.rsp-8], asm.rax),
-                    asm.movsd(asm.xmm0, [asm.rsp-8])
-                ])
-                location = asm.xmm0
-            else:
-                raise TypeError("Unsupported expression type:", operands[0])
+            assert isinstance(operands[0], Variable)
+            return operands[0]
+        elif (len(operands) == 2 and isinstance(operands[0], Constant) and
+              isinstance(operands[1], Constant)):
+            fn = {'+': operator.add, '-': operator.sub}[group.op]
+            val = fn(operands[0].init, operands[1].init)
+            print operands[0].init, operands[1].init, val
+            return Constant(val, group.type)
         elif group.op == '+':
             code.append(asm.add(*operands))
             location = operands[0]
         elif group.op == '-':
             code.append(asm.sub(*operands))
             location = operands[0]
-        elif group.op == '+':
-            code.append(asm.add(*operands))
+        elif group.op == '*':
+            code.append(asm.imul(*operands))
             location = operands[0]
-        elif group.op == '+':
-            code.append(asm.add(*operands))
-            location = operands[0]
-            
         else:
             raise NotImplementedError('operand: %s' % group.op)
         
         state.add_code(code)
-        return Variable(type='int', location=location)
+        return Variable(type=group.type, location=location)
     
     def _tokenize(self, state):
         # Parse expression into tokens
@@ -78,20 +76,28 @@ class Expression(object):
         expr = self.expr
         while len(expr) > 0:
             expr = expr.lstrip()
+            
+            # Check for operators
             if expr[0] in '+-*/()':
                 tokens.append(expr[0])
                 expr = expr[1:]
                 continue
+            
+            # check for identifiers
             m = re.match(r'([a-zA-Z_][a-zA-Z0-9_]*)(.*)', expr)
             if m is not None:
                 tokens.append(state.get_var(m.groups()[0]))
                 expr = m.groups()[1]
                 continue
+            
+            # check for immediate values
             m = re.match(r'(-?(([0-9]+(\.[0-9]*)?)|(([0-9]*\.)?[0-9]+))(e-?[0-9]+)?)(.*)', expr)
             if m is not None:
-                tokens.append(eval(m.groups()[0]))
+                const = Constant(eval(m.groups()[0]))
+                tokens.append(const)
                 expr = m.groups()[-1]
                 continue
+            
         return tokens
 
     def _group(self, tokens):
@@ -156,13 +162,20 @@ class TokGrp(object):
         
     @property
     def type(self):
-        # todo: decide when to do automatic type casting
-        if isinstance(self.args[0], (TokGrp, Variable)):
-            return self.args[0].type
-        elif isinstance(self.args[0], int):
-            return 'int'
-        elif isinstance(self.args[0], float):
-            return 'float'
+        argtyps = []
+        for arg in self.args:
+            if isinstance(arg, (TokGrp, Variable)):
+                argtyps.append(arg.type)
+            elif isinstance(arg, int):
+                argtyps.append('int')
+            elif isinstance(arg, float):
+                argtyps.append('double')
+        argtyps.sort()
+            
+        if argtyps[0] == argtyps[1]:
+            return argtyps[0]
+        elif 'double' in argtyps:
+            return 'double'
         else:
             raise NotImplementedError("Can't determine expression type: %s" % self.args)
         
@@ -194,16 +207,3 @@ class TokGrp(object):
             return '(%s %s)' % (self.op, self.args[1])
 
 
-class _SubExpr(object):
-    def __init__(self, arg1, op=None, arg2=None):
-        self.arg1 = arg1
-        self.op = op
-        self.arg2 = arg2
-        
-        # compile simple expression
-        self.location = arg1.location
-        
-        self.code = []
-        if op == '+':
-            self.code = [asm.add(arg1.location, arg2)]
-            

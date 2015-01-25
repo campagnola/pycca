@@ -1327,6 +1327,7 @@ class fucomip(Instruction):
 
 # avx/sse2 instructions
 # addsd, subsd, mulsd, divsd, ...
+# cvtsi2ss, cvttss2si
 # movdq2q, movq2dq
 
 
