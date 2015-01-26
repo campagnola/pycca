@@ -49,6 +49,16 @@ class MachineState(object):
                 return reg
         
         raise NotImplementedError('All registers in use; swap to stack not implemented yet.')
+
+    def update_register(self, reg, var):
+        """Update the machine to transfer ownership of *reg* to *var*.
+        """
+        var.reg = reg
+        if reg in self.registers:
+            oldvar = self.registers[reg]
+            if oldvar.reg is reg:
+                oldvar.reg = None
+        self.registers[reg] = var
     
     def add_variable(self, var):
         """Add a new variable to the current scope.
@@ -60,7 +70,7 @@ class MachineState(object):
             raise NameError('Variable "%s" already declared.' % var.name)
         self.scope[var.name] = var
         if var.reg is not None:
-            self.registers[var.reg] = var
+            self.update_register(var.reg, var)
         
     def add_function(self, func):
         """Add a new function to the global scope.

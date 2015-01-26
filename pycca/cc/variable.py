@@ -56,6 +56,27 @@ class Variable(object):
         else:
             raise NotImplementedError()
 
+    @property
+    def operand_type(self):
+        """Return a code indicating the operand type for this variable:
+        
+        i=immediate, r=register, m=memory, ...
+        """
+        if self.reg is not None:
+            return 'r'
+        elif self.addr is not None:
+            return 'm'
+        else:
+            return None
+
+    def get_register(self, state, type='gp'):
+        """Return the register where this variable is stored, if available.
+        If not, move the variable to a register first.
+        """
+        if self.reg is not None:
+            return self.reg
+        raise NotImplementedError()
+
     def __repr__(self):
         return '%s(name=%s, loc=%s, init=%s)' % (self.__class__.__name__, 
                                                  self.name, self.location, 
@@ -69,6 +90,13 @@ class Constant(Variable):
                 type = 'int'
             elif isinstance(value, float):
                 type = 'double'
-            
+
         Variable.__init__(self, name=None, type=type, init=value)
 
+    @property
+    def operand_type(self):
+        typ = Variable.operand_type.fget(self)
+        if typ is None:
+            return 'i'
+        return typ
+        

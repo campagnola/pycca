@@ -31,43 +31,47 @@ class Expression(object):
         """Compile a sub-expression and return a Variable containing the 
         output.
         """
-        code = []
         args = group.args
         operands = []
-        
+        optyps = ''
         for arg in args:
             if arg is None:
                 continue
             if isinstance(arg, TokGrp):
-                var = self._compile_subexpr(arg, state)
-                operands.append(var)
-            elif isinstance(arg, Variable):
-                operands.append(arg)
-            else:
+                arg = self._compile_subexpr(arg, state)
+            if not isinstance(arg, Variable):
                 raise TypeError("Invalid expression operand : %r" % arg)
+            operands.append(arg)
+            optyps += arg.operand_type
         
-        if group.op is None and len(operands) == 1:
-            assert isinstance(operands[0], Variable)
-            return operands[0]
-        elif (len(operands) == 2 and isinstance(operands[0], Constant) and
-              isinstance(operands[1], Constant)):
-            fn = {'+': operator.add, '-': operator.sub}[group.op]
-            val = fn(operands[0].init, operands[1].init)
-            return Constant(val, group.type)
-        elif group.op == '+':
-            code.append(asm.add(*operands))
-            location = operands[0]
-        elif group.op == '-':
-            code.append(asm.sub(*operands))
-            location = operands[0]
-        elif group.op == '*':
-            code.append(asm.imul(*operands))
-            location = operands[0]
+        if len(operands) == 1:
+            if group.op is None:
+                assert isinstance(operands[0], Variable)
+                return operands[0]
+            else:
+                raise NotImplementedError("No unary operators yet.")
+        elif len(operands) == 2:
+            if optyps == 'ii':
+                # two constant operands; just compute a new constant.
+                fn = {'+': operator.add, 
+                    '-': operator.sub}[group.op]
+                val = fn(operands[0].init, operands[1].init)
+                return Constant(val, group.type)
+            elif group.op == '+':
+                if not optyps[0] == 'r':
+                    operands[0].get_register(state)
+                # TODO: Store op 0 to memory or another register if it will be 
+                #       needed later and it is not imm.
+                location = operands[0].location
+                state.add_code([asm.add(location, operands[1].location)])
+            else:
+                raise NotImplementedError('operand: %s' % group.op)
         else:
-            raise NotImplementedError('operand: %s' % group.op)
+            raise RuntimeError("Too many operands in group.")
         
-        state.add_code(code)
-        return Variable(type=group.type, location=location)
+        var = Variable(type=group.type, location=location)
+        state.add_variable(var)
+        return var
     
     def _tokenize(self, state):
         # Parse expression into tokens
