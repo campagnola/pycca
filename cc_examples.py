@@ -1,16 +1,25 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+import logging as log
 from pycca.cc import CCode, Function, Assign, Return
 
-expr = '(x + 1) * 2'
-code = CCode([
-    Function('int', 'eval_expr', [('int', 'x')], [
-        Assign(x=expr),
-        Return('x')
+log.basicConfig(level=log.INFO)
+
+
+def eval_expr(expr, x):
+    code = CCode([
+        Function('int', 'eval_expr', [('int', 'x')], [
+            Assign(x=expr),
+            Return('x')
+        ])
     ])
-])
-print code.dump_asm()
-print '%s = %s' % (expr, code.eval_expr(3))
+    print code.dump_asm()
+    print 'x = %s; %s = %s' % (x, expr, code.eval_expr(x))
+
+eval_expr('x + 1', 3)
+#eval_expr('1 + x', 3)
+#eval_expr('x + 1 + x', 3)
+
 
 
 c = CCode([Function('double', 'fn', [], [Return(12.3)]) ])

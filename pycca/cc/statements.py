@@ -59,7 +59,6 @@ class Function(CodeObject):
             argf = [asm.xmm0, asm.xmm1, asm.xmm2, asm.xmm3, asm.xmm4, asm.xmm5, asm.xmm6, asm.xmm7]
             stackp = 0
             for argtype, argname in self.args:
-                # todo: only works for single int arg
                 if argtype == 'int':
                     if len(argi) > 0:
                         loc = argi.pop(0)
@@ -78,13 +77,13 @@ class Function(CodeObject):
                 state.add_variable(var)
             
             # Compile function contents
-            # todo: prologue, epilogue
-            code = [asm.label(self.name)]
-            for item in self.code:
-                code.extend(item.compile(state))
-            code.append(asm.ret())
+            state.add_code([asm.label(self.name)])
             
-            state.add_code(code)
+            # todo: prologue, epilogue
+            for item in self.code:
+                item.compile(state)
+            
+            state.add_code([asm.ret()])
 
 
 class Assign(CodeObject):
@@ -97,7 +96,10 @@ class Assign(CodeObject):
         for name, expr in self.assignments.items():
             expr = Expression(expr)
             result = expr.compile(state)
-            state.get_var(name).set_location(result.get_location(state))
+            var = state.get_var(name)
+            loc = result.get_location(state)
+            state.set_var_location(var, loc)
+            
         state.add_code(code)
 
 
@@ -105,21 +107,22 @@ class Return(CodeObject):
     def __init__(self, expr=None):
         CodeObject.__init__(self)
         self.expr = expr
-        
+    
     def compile(self, state):
-        code = []
         if self.expr is not None:
             expr = Expression(self.expr)
-            result = code.extend(expr.compile(state))
-        
-            if expr.type == 'int' and result.location is not asm.rax:
-                code.append(asm.mov(asm.rax, result.location))
-            elif expr.type == 'double' and result.location is not asm.xmm0:
-                code.append(asm.movsd(asm.xmm0, result.location))
+            result = expr.compile(state)
             
-        state.add_code(code)
-        
-
+            fn = state.current_function()
+            restype = fn.return_type
+            if result.type != restype:
+                raise TypeError("Function requires return type %s; got %s" % 
+                                (restype, result.type))
+            
+            if restype == 'int':
+                state.move(asm.rax, result)
+            elif restype == 'double':
+                state.move(asm.xmm0, result)
     
 
 def call(func, *args):

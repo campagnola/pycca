@@ -19,7 +19,7 @@ class CCode(object):
 
         self.codepage = CodePage(state.asm)
         
-        for name, obj in state.globals:
+        for name, obj in state.globals.items():
             if isinstance(obj, Function):
                 func = self.codepage.get_function(obj.name)
                 func.restype = obj.c_restype

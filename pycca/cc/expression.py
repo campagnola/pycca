@@ -15,7 +15,7 @@ class Expression(object):
         
         # First tokenize the expression string
         if isinstance(self.expr, (int, float)):
-            tokens = [self.expr]
+            tokens = [Constant(self.expr)]
         else:
             tokens = self._tokenize(state)
         #return tokens
@@ -57,27 +57,34 @@ class Expression(object):
                     '-': operator.sub}[group.op]
                 val = fn(operands[0].init, operands[1].init)
                 return Constant(val, group.type)
-            elif group.op == '+':
+            
+            if group.op == '+':
                 if not optyps[0] == 'r':
                     operands[0].get_register(state)
                 # TODO: Store op 0 to memory or another register if it will be 
                 #       needed later and it is not imm.
                 location = operands[0].location
-                state.add_code([asm.add(location, operands[1].location)])
+                
+                op2 = operands[1].get_operand('rmi')
+                
+                state.add_code([asm.add(location, op2)])
             else:
                 raise NotImplementedError('operand: %s' % group.op)
+            
+            var = Variable(type=group.type)
+            state.add_variable(var)
+            state.update_register(location, var)
+            return var
         else:
             raise RuntimeError("Too many operands in group.")
         
-        var = Variable(type=group.type, location=location)
-        state.add_variable(var)
-        return var
     
     def _tokenize(self, state):
         # Parse expression into tokens
         tokens = []
-        expr = self.expr
+        origexpr = expr = self.expr
         while len(expr) > 0:
+            startlen = len(expr)
             expr = expr.lstrip()
             
             # Check for operators
@@ -94,13 +101,19 @@ class Expression(object):
                 continue
             
             # check for immediate values
-            m = re.match(r'(-?(([0-9]+(\.[0-9]*)?)|(([0-9]*\.)?[0-9]+))(e-?[0-9]+)?)(.*)', expr)
+            fp = r'-?(([0-9]+(\.[0-9]*)?)|(([0-9]*\.)?[0-9]+))'
+            m = re.match(r'({fp}([eE]{fp})?)(.*)'.format(fp=fp), expr)
             if m is not None:
                 const = Constant(eval(m.groups()[0]))
                 tokens.append(const)
                 expr = m.groups()[-1]
                 continue
             
+            if len(expr) == startlen:
+                raise SyntaxError("Invalid expression syntax:\n%s\n%s" % 
+                                  (origexpr, ' '*(len(origexpr)-len(expr))+'^'))
+            
+        print "tokens:", tokens
         return tokens
 
     def _group(self, tokens):

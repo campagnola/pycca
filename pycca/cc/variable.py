@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import struct
+
 from ..asm import Register, Pointer
 
 
@@ -68,6 +70,26 @@ class Variable(object):
             return 'm'
         else:
             return None
+
+    def get_operand(self, types):
+        """Return a representation of this variable that can be used as an 
+        assembly instruction operand. 
+        
+        The type returned depends on *types*, which is a string composed of
+        'i', 'r', and 'm'.
+        """
+        typ = self.operand_type
+        if typ == 'i' and 'i' in types:
+            if self.type == 'double':
+                return struct.pack('d', self.init)
+            else:
+                return self.init
+        elif typ == 'r' and 'r' in types:
+            return self.reg
+        elif typ == 'm' and 'm' in types:
+            return self.addr
+        else:
+            raise NotImplementedError("Convert variable type %s to operand type %s" % (typ, typs))
 
     def get_register(self, state, type='gp'):
         """Return the register where this variable is stored, if available.
