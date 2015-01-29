@@ -63,7 +63,7 @@ def mod_reg_rm(mod, reg, rm):
               010    [edx]
               011    [ebx]
               100    + SIB byte
-              101    + disp32 
+              101    + disp32  (RIP + disp32 in 64bit mode)
               110    [esi]
               111    [edi]
         01    000    [eax] + disp8
@@ -334,6 +334,9 @@ class Pointer(object):
 
     def __radd__(self, x):
         return self + x
+    
+    def __sub__(self, x):
+        return self + (-x)
 
     def __repr__(self):
         return "Pointer(%s)" % str(self)
@@ -341,7 +344,10 @@ class Pointer(object):
     def __str__(self):
         parts = []
         if self.disp is not None:
-            parts.append('0x%x' % self.disp)
+            if self.disp < 0:
+                parts.append('-0x%x' % -self.disp)
+            else:
+                parts.append('0x%x' % self.disp)
         if self.reg1 is not None:
             if self.scale is not None:
                 parts.append("%d*%s" % (self.scale, self.reg1.name))
@@ -383,6 +389,13 @@ class Pointer(object):
             if self.reg1.bits != self.reg2.bits:
                 raise TypeError('Cannot compile pointer from registers of '
                                 'different size: %s, %s' % (self.reg1, self.reg2))
+        if rip in (self.reg1, self.reg2):
+            if None not in (self.reg1, self.reg2):
+                raise TypeError("Cannot combine registers %s and %s in pointer." % 
+                                (self.reg1.name, self.reg2.name))
+            if self.scale not in (None, 0):
+                raise TypeError("Cannot use scale with rip-relative addressing.")
+
 
         if ((self.reg1 is not None and self.reg1.bits == 16) or
             (self.reg2 is not None and self.reg2.bits == 16)):
@@ -418,6 +431,18 @@ class Pointer(object):
                     return mrex|srex, modrm + sib + disp
             elif len(regs) == 1:
                 # one register; put this wherever is most convenient.
+                if regs[0].name == 'rip':
+                    # RIP-relative addressing
+                    if ARCH != 64:
+                        raise TypeError('rip-relative addressing not supported'
+                                        ' in 32-bit mode.')
+                    if self.disp is None:
+                        disp = b'\0\0\0\0'
+                    else:
+                        disp = struct.pack('i', self.disp)
+                    mrex, modrm = mod_reg_rm('ind', reg, 'disp')
+                    return mrex, modrm + disp
+                
                 if regs[0].val == 4:
                     # can't put this in r/m; use sib instead.
                     mrex, modrm = mod_reg_rm(mod, reg, 'sib')

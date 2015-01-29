@@ -194,6 +194,13 @@ def test_pack_int():
     assert pack_int(0x10000000) == b'\x00\x00\x00\x10'
     assert pack_int(0x1000000000) == b'\x00\x00\x00\x00\x10\x00\x00\x00'
 
+def test_rip():
+    modeis64 = ARCH == 64
+    itest( mov(rax, [rip+0x8]), modeis64 )
+    itest( mov(rax, [rip]), modeis64 )
+    itest( mov(rax, [rip-0x1000]), modeis64 )
+    itest( mov(rax, [rip-0x1000+rbx]), False )
+    itest( mov(rax, [rip*2-0x1000]), False )
 
 
 # Move instructions
