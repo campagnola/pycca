@@ -1,18 +1,6 @@
 import ctypes, struct, time, math
-try:
-    import numpy as np
-    HAVE_NUMPY = True
-except ImportError:
-    import array
-    HAVE_NUMPY = False
 
 from pycca.asm import *
-
-try:
-    import faulthandler
-    faulthandler.enable()
-except ImportError:
-    pass
 
 
 
@@ -21,11 +9,9 @@ print("""
 ------------------------------------------------------
 """)
 
-# just leave the value in eax/rax before returning
-reg = rax if ARCH == 64 else eax
-val = struct.pack('I', 0xdeadbeef)
+# To return a value from a function, just put it in eax or rax:
 fn = mkfunction([
-    mov(reg, val),
+    mov(eax, 0xdeadbeef),
     ret()
 ])
 
@@ -68,6 +54,13 @@ print("""
 """)
 
 # Show how to access data from both numpy array and python arrays
+try:
+    import numpy as np
+    HAVE_NUMPY = True
+except ImportError:
+    import array
+    HAVE_NUMPY = False
+
 if HAVE_NUMPY:
     data = np.ones(10, dtype=np.uint32)
     addr = data.ctypes.data
@@ -127,6 +120,8 @@ print("""
 """)
 
 # Printing requires OS calls that are different for every platform.
+# (However: you probably want to just call printf() anyway; see
+#  below for an example of calling an external function)
 msg = ctypes.create_string_buffer(b"Howdy.\n")
 if sys.platform == 'win32':
     print("[ not implemented on win32 ]")
