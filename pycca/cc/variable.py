@@ -2,7 +2,7 @@
 import struct
 
 from ..asm import Register, Pointer
-
+from .. import asm
 
 types = ['int', 'double']
 
@@ -70,6 +70,8 @@ class Variable(object):
                 raise TypeError("Cannot get memory address for %s" % self)
             data = struct.pack(self.struct_typ, self.init)
             label = state.add_data(name=None, data=data)
+            self.addr = Pointer(label=label)
+        return self.addr
 
     @property
     def struct_typ(self):

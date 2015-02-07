@@ -266,6 +266,8 @@ class Pointer(object):
         if label is not None:
             if reg1 is not None or reg2 is not None or scale is not None:
                 raise TypeError("Pointer with label may only include displacement.")
+            if isinstance(label, Label):
+                label = label.name
         
         if not isinstance(reg1, (type(None), Register)):
             raise TypeError("Invalid register %s" % reg1)

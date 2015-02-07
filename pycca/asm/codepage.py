@@ -49,7 +49,7 @@ class CodePage(object):
             self.page_addr = ctypes.addressof(buf)
         
         # Compile machine code and write to the page.
-        code = self.compile(asm)
+        code = self.compile()
         assert len(code) <= len(self.page)
         self.page.write(bytes(code))
         self.code = code
@@ -76,49 +76,73 @@ class CodePage(object):
         f.page = self  # Make sure page stays alive as long as function pointer!
         return f
 
-    def compile(self, asm):
+    def compile(self, pretty=False):
+        asm = self.asm
         ptr = self.page_addr
         # First locate all labels
-        for cmd in asm:
-            ptr += len(cmd)
-            if isinstance(cmd, Label):
-                self.labels[cmd.name] = ptr
+        for inst in asm:
+            ptr += len(inst)
+            if isinstance(inst, Label):
+                self.labels[inst.name] = ptr
                 
         # now compile
         symbols = self.labels.copy()
         code = b''
-        for cmd in asm:
-            if isinstance(cmd, Label):
+        pretty_str = ''
+        for inst in asm:
+            if isinstance(inst, Label):
+                if pretty:
+                    pretty_str += self.pretty_line(inst, '', len(code))
                 continue
             
-            if isinstance(cmd, Instruction):
-                cmd = cmd.code
+            if isinstance(inst, Instruction):
+                icode = inst.code
+            elif isinstance(inst, (bytes, bytearray)):
+                icode = inst
                 
-            if isinstance(cmd, Code):
+            if isinstance(icode, Code):
                 # Make some special symbols available when resolving
                 # expressions:
                 symbols['instr_addr'] = self.page_addr + len(code)
-                symbols['next_instr_addr'] = symbols['instr_addr'] + len(cmd)
+                symbols['next_instr_addr'] = symbols['instr_addr'] + len(icode)
                 
-                cmd = cmd.compile(symbols)
+                icode = icode.compile(symbols)
             
-            code += cmd
+            if pretty:
+                pretty_str += self.pretty_line(inst, icode, len(code))
+            code += icode
+            
+        if pretty:
+            return pretty_str
         return code
+
+    def pretty_line(self, instr, icode, ptr):
+        hex = ''
+        for c in bytearray(icode):
+            hex += '%02x' % c
+        indent = 30 if isinstance(instr, Label) else 33
+        if isinstance(instr, (bytes, bytearray)):
+            instr = '0x'+hex
+        return '0x%04x: %s%s%s\n' % (ptr, hex, ' '*(indent-len(hex)), instr)
 
     def dump(self):
         """Return a string representation of the machine code and assembly
         instructions contained in the code page.
         """
-        code = ''
-        ptr = 0
-        for instr in self.asm:
-            hex = ''
-            if isinstance(instr, Instruction):
-                for c in bytearray(instr.code):
-                    hex += '%02x' % c
-            code += '0x%04x: %s%s%s\n' % (ptr, hex, ' '*(40-len(hex)), instr)
-            ptr += len(hex)/2
-        return code
+        return self.compile(pretty=True)
+        #code = ''
+        #ptr = 0
+        #for instr in self.asm:
+            #hex = ''
+            #if isinstance(instr, Instruction):
+                #icode = instr.code
+                #if isinstance(icode, Code):
+                    #icoce = icode.compile(..)
+                #for c in bytearray(icode):
+                    #hex += '%02x' % c
+            #code += '0x%04x: %s%s%s\n' % (ptr, hex, ' '*(40-len(hex)), instr)
+            #ptr += len(hex)/2
+        #return code
 
 
 class WinPage(object):

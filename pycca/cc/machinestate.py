@@ -140,6 +140,9 @@ class MachineState(object):
         if len(code) == 0:
             return
         log.info('Add code:\n%s' % '\n'.join([(' '*14)+str(i) for i in code]))
+        for i in code:
+            if isinstance(i, asm.Instruction):
+                i.code  # just check to see if there are problems at this point
         self.asm.extend(code)
         
     def get_var(self, name):
@@ -160,8 +163,7 @@ class MachineState(object):
             elif var.type == 'double':
                 reg = self.free_register(type='gp', bits=64)
                 self.add_code([
-                    asm.mov(reg, var.get_pointer(self)),
-                    asm.movsd(asm.xmm0, reg)
+                    asm.movsd(asm.xmm0, var.get_pointer(self)),
                 ])
             else:
                 raise NotImplementedError('move %s, %s' % (dest, var))
@@ -180,8 +182,8 @@ class MachineState(object):
             
     def compile_data(self):
         for name, data in self.data:
-            self.code.append(Label(name))
-            self.code.append(data)
+            self.asm.append(asm.label(name))
+            self.asm.append(data)
 
 
 class LocalScope(object):
