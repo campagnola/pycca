@@ -54,5 +54,5 @@ from .instructions import *
 from .register import *
 from .pointer import byte, word, dword, qword
 from .codepage import CodePage, mkfunction
-from .instruction import label, Label
+from .label import label
 from .util import *

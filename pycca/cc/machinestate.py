@@ -109,7 +109,7 @@ class MachineState(object):
             name = '__data_%d' % self._next_data_id
             self._next_data_id += 1
         self.data.append((name, data))
-        return asm.Label(name)
+        return asm.label(name)
         
     def add_function(self, func):
         """Add a new function to the global scope.

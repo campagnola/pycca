@@ -170,7 +170,7 @@ To add new instructions:
 * For debugging, make use of tools in ``pycca.asm.util``, especially the 
   ``compare``, ``as_code``, and ``phexbin`` functions.
 
-Note that advanced CPU extensions such as SSE2 and AVX are not yet supported.
+Note that AVX-encoded instructions are not yet supported.
 
 
 

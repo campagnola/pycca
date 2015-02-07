@@ -3,8 +3,10 @@
 import struct
 
 from .register import *
-from . import ARCH
 from .util import long
+from .label import Label
+from .code import Code
+from . import ARCH
 
 #   Instruction Prefixes
 #----------------------------------------
@@ -63,7 +65,7 @@ def mod_reg_rm(mod, reg, rm):
               010    [edx]
               011    [ebx]
               100    + SIB byte
-              101    + disp32 
+              101    + disp32  (RIP + disp32 in 64bit mode)
               110    [esi]
               111    [edi]
         01    000    [eax] + disp8
@@ -234,33 +236,55 @@ class Pointer(object):
         mov(rax, [0x1000 + rax])
         mov(rax, [0x1000 + rbx*4])
     """
-    def __init__(self, reg1=None, scale=None, reg2=None, disp=None):
-        if isinstance(reg1, list) and scale is None and reg2 is None and disp is None:
-            if len(reg1) != 1:
-                raise TypeError("Cannot create Pointer from list with length != 1")
-            arg = reg1[0]
+    def __init__(self, reg1=None, scale=None, reg2=None, disp=None, label=None):
+        if isinstance(reg1, (Pointer, list)) and scale is None and reg2 is None and disp is None:
+            if isinstance(reg1, list):
+                if len(reg1) != 1:
+                    raise TypeError("Cannot create Pointer from list with length != 1")
+                arg = reg1[0]
+            else:
+                arg = reg1
+            reg1 = None
             if isinstance(arg, Register):
                 reg1 = arg
             elif isinstance(arg, (int, long)):
-                reg1 = None
                 disp = arg
             elif isinstance(arg, Pointer):
                 reg1 = arg.reg1
                 scale = arg.scale
                 reg2 = arg.reg2
                 disp = arg.disp
+                label = arg.label
+            elif isinstance(arg, str):
+                label = arg
+            elif isinstance(arg, Label):
+                label = arg.name
             else:
                 raise TypeError("List arguments may only contain a single int, "
                                 "Register, or Pointer.")
+
+        if label is not None:
+            if reg1 is not None or reg2 is not None or scale is not None:
+                raise TypeError("Pointer with label may only include displacement.")
+        
+        if not isinstance(reg1, (type(None), Register)):
+            raise TypeError("Invalid register %s" % reg1)
+        if not isinstance(reg2, (type(None), Register)):
+            raise TypeError("Invalid register %s" % reg2)
+        if not isinstance(disp, (type(None), int)):
+            raise TypeError("Invalid displacement %r" % disp)
+        if not isinstance(scale, (type(None), int)):
+            raise TypeError("Invalid scale %r" % scale)
         
         self.reg1 = reg1
         self.scale = scale
         self.reg2 = reg2
         self.disp = disp
+        self.label = label
         self._bits = None
 
     def copy(self):
-        return Pointer(self.reg1, self.scale, self.reg2, self.disp)
+        return Pointer(self.reg1, self.scale, self.reg2, self.disp, self.label)
 
     @property
     def prefix(self):
@@ -329,19 +353,42 @@ class Pointer(object):
                     y.reg2 = y.reg1
                 y.reg1 = x.reg1
                 y.scale = x.scale
+            if x.label is not None:
+                if self.label is not None:
+                    raise TypeError("Cannot add two label pointers.")
+                y.label = x.label
+        
+            if y.label is not None:
+                if y.reg1 is not None or y.reg2 is not None or y.scale is not None:
+                    raise TypeError("Cannot add label pointer to register pointer.")
+                
             
         return y
 
     def __radd__(self, x):
         return self + x
+    
+    def __sub__(self, x):
+        return self + (-x)
 
     def __repr__(self):
         return "Pointer(%s)" % str(self)
+    
+    def __eq__(self, x):
+        x = Pointer(x)
+        return (x.reg1 is self.reg1 and
+                x.reg2 is self.reg2 and
+                (x.disp == self.disp or (x.disp in (0, None) and self.disp in (0, None))) and
+                (x.scale == self.scale or (x.scale in (1, None) and self.scale in (1, None))) and
+                x.label == self.label)
 
     def __str__(self):
         parts = []
         if self.disp is not None:
-            parts.append('0x%x' % self.disp)
+            if self.disp < 0:
+                parts.append('-0x%x' % -self.disp)
+            else:
+                parts.append('0x%x' % self.disp)
         if self.reg1 is not None:
             if self.scale is not None:
                 parts.append("%d*%s" % (self.scale, self.reg1.name))
@@ -349,6 +396,8 @@ class Pointer(object):
                 parts.append(self.reg1.name)
         if self.reg2 is not None:
             parts.append(self.reg2.name)
+        if self.label is not None:
+            parts.append(self.label)
         ptr = '[' + ' + '.join(parts) + ']'
         if self._bits is None:
             return ptr
@@ -371,18 +420,25 @@ class Pointer(object):
         * For [reg1+esp], esp is always moved to base
         * Special encoding for [*sp]
         * Special encoding for [disp]
-        """
+        """        
         # check address size is supported
         for r in (self.reg1, self.reg2):
             if r is not None and r.bits < ARCH//2:
                 raise TypeError("Invalid register for pointer: %s" % r.name)
-            
+        
         # sanity checks
         # (note these should not go in init to facilitate testing)
         if self.reg1 is not None and self.reg2 is not None:
             if self.reg1.bits != self.reg2.bits:
                 raise TypeError('Cannot compile pointer from registers of '
                                 'different size: %s, %s' % (self.reg1, self.reg2))
+        if rip in (self.reg1, self.reg2):
+            if None not in (self.reg1, self.reg2):
+                raise TypeError("Cannot combine registers %s and %s in pointer." % 
+                                (self.reg1.name, self.reg2.name))
+            if self.scale not in (None, 0):
+                raise TypeError("Cannot use scale with rip-relative addressing.")
+
 
         if ((self.reg1 is not None and self.reg1.bits == 16) or
             (self.reg2 is not None and self.reg2.bits == 16)):
@@ -402,22 +458,58 @@ class Pointer(object):
             # No scale means we are free to change the order of registers
             regs = [x for x in (self.reg1, self.reg2) if x is not None]
             
+            if self.label is not None:
+                assert len(regs) == 0
+                if ARCH == 64:
+                    regs = [rip]
+            
             if len(regs) == 0:
-                # displacement only
-                if self.disp is None:
+                # displacement and/or label only
+                
+                if self.disp is None and self.label is None:
                     raise TypeError("Cannot encode empty pointer.")
-                disp = struct.pack('i', self.disp)
-                # For some reason, GNU prefers to encode [disp] pointers
-                # two different ways on 32/64 bit arches.
+                disp = 0 if self.disp is None else self.disp
+                
+                # In 64bit mode, the encoding for [disp] is different because
+                # using mod=00, rm=101 is for rip-relative addressing.
                 if ARCH == 32:  
                     mrex, modrm = mod_reg_rm('ind', reg, 'disp')
-                    return mrex, modrm + disp
+                    if self.label is None:
+                        disp = struct.pack('i', disp)
+                        return mrex, modrm + disp
+                    else:
+                        # Prepare code replacement instructions for label
+                        code = Code(modrm + b'\0'*4)
+                        code.replace(len(modrm), '%s + %d' % 
+                                     (self.label, disp), 'i')
+                        return mrex, code
                 else:
                     mrex, modrm = mod_reg_rm('ind', reg, 'sib')
                     srex, sib = mk_sib(0, None, 'disp')
+                    disp = struct.pack('i', disp)
                     return mrex|srex, modrm + sib + disp
             elif len(regs) == 1:
                 # one register; put this wherever is most convenient.
+                if regs[0].name == 'rip':
+                    # RIP-relative addressing
+                    if ARCH != 64:
+                        raise TypeError('rip-relative addressing not supported'
+                                        ' in 32-bit mode.')
+                    mrex, modrm = mod_reg_rm('ind', reg, 'disp')
+                    if self.label is None:
+                        if self.disp is None:
+                            disp = b'\0\0\0\0'
+                        else:
+                            disp = struct.pack('i', self.disp)
+                        return mrex, modrm + disp
+                    else:
+                        # Prepare code replacement instructions for label
+                        disp = 0 if self.disp is None else self.disp
+                        code = Code(modrm + b'\0'*4)
+                        code.replace(len(modrm), '%s + %d - next_instr_addr' % 
+                                     (self.label, disp), 'i')
+                        return mrex, code
+                
                 if regs[0].val == 4:
                     # can't put this in r/m; use sib instead.
                     mrex, modrm = mod_reg_rm(mod, reg, 'sib')

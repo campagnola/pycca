@@ -5,6 +5,7 @@ import sys
 from .register import Register
 from .pointer import Pointer, mod_reg_rm
 from .util import long
+from .code import Code
 
 
 class ModRmSib(object):
@@ -52,4 +53,4 @@ class ModRmSib(object):
         else:
             raise TypeError('Invalid argument types: %s, %s' % (type(a), type(b)))
 
-        assert isinstance(self.code, bytes)
+        assert isinstance(self.code, (bytes, Code))

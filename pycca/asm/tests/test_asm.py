@@ -194,6 +194,13 @@ def test_pack_int():
     assert pack_int(0x10000000) == b'\x00\x00\x00\x10'
     assert pack_int(0x1000000000) == b'\x00\x00\x00\x00\x10\x00\x00\x00'
 
+def test_rip():
+    modeis64 = ARCH == 64
+    itest( mov(rax, [rip+0x8]), modeis64 )
+    itest( mov(rax, [rip]), modeis64 )
+    itest( mov(rax, [rip-0x1000]), modeis64 )
+    itest( mov(rax, [rip-0x1000+rbx]), False )
+    itest( mov(rax, [rip*2-0x1000]), False )
 
 
 # Move instructions
@@ -425,6 +432,23 @@ def test_fcomi():
         itest( fucomi(st(a), st(b)) )
         itest( fucomip(st(a), st(b)) )
     
+def test_addsd():
+    itest( addsd(xmm3, xmm4) )
+    itest( addsd(xmm3, [rax]) )
+
+def test_subsd():
+    itest( subsd(xmm3, xmm4) )
+    itest( subsd(xmm3, [rax]) )
+
+def test_mulsd():
+    itest( mulsd(xmm3, xmm4) )
+    itest( mulsd(xmm3, [rax]) )
+
+def test_divsd():
+    itest( divsd(xmm3, xmm4) )
+    itest( divsd(xmm3, [rax]) )
+
+
 
 # Testing instructions
 

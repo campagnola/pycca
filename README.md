@@ -73,5 +73,5 @@ Roadmap
   instructions.
 * Version 0.4: Parser supporting a subset of C language including functions,
   control flow, and basic data types. 
-* Version 0.5: Add support for SSE2, AVX instructions.
+* Version 0.5: Add support for more SSE2, AVX instructions.
 

@@ -5,71 +5,11 @@ import struct, collections
 from .register import Register
 from .pointer import Pointer, pack_int, pack_uint, rex
 from .modrm import ModRmSib
-from . import ARCH
 from .util import long
+from .label import Label
+from .code import Code
+from . import ARCH
 
-
-
-#   Misc. utilities required by instructions
-#------------------------------------------------
-
-
-class Code(object):
-    """
-    Represents partially compiled machine code with a table of unresolved
-    expression replacements.
-    
-    Code instances can be compiled to a complete machine code string once all
-    expression values can be determined.
-    """
-    def __init__(self, code):
-        self.code = code
-        self.replacements = {}
-        
-    def replace(self, index, expr, packing):
-        """
-        Add a new replacement starting at *index*. 
-        
-        When this Code is compiled, the value of *expr* will be evaluated,
-        packed with *packing* and written into the code at *index*. The expression
-        is evaluated using the program's symbols as local variables.
-        """
-        self.replacements[index] = (expr, packing)
-        
-    def __len__(self):
-        return len(self.code)
-    
-    def compile(self, symbols):
-        code = self.code
-        for i,repl in list(self.replacements.items()):
-            expr, packing = repl
-            val = eval(expr, symbols)
-            val = struct.pack(packing, val)
-            code = code[:i] + val + code[i+len(val):]
-        return code
-
-
-def label(name):
-    """
-    Create a label referencing a location in the code.
-    
-    The name of this label may be used by other assembler calls that require
-    a code pointer.
-    """
-    return Label(name)
-
-class Label(object):
-    def __init__(self, name):
-        self.name = name
-        
-    def __len__(self):
-        return 0
-        
-    def __str__(self):
-        return ':' + self.name
-        
-    def compile(self, symbols):
-        return ''
 
 
 
@@ -498,10 +438,12 @@ class Instruction(object):
         opcode = self.opcode
         operands = self.operands
         
-        self._code = (b''.join(prefixes) + 
+        code = (b''.join(prefixes) + 
                       rex_byte + 
-                      opcode + 
-                      b''.join(operands))
+                      opcode)
+        for op in operands:
+            code = code + op
+        self._code = code
 
     def parse_operands(self):
         """Use supplied arguments and selected operand encodings to determine

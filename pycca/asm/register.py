@@ -149,7 +149,10 @@ class Register(object):
         return self * x
 
     def __repr__(self):
-        return "Register(0x%x, %s, %d)" % (self._val, self._name, self._bits)
+        if self._val is None:
+            return "Register(%s, %d)" % (self._name, self._bits)
+        else:
+            return "Register(0x%x, %s, %d)" % (self._val, self._name, self._bits)
         
     def __str__(self):
         return self._name
@@ -263,6 +266,9 @@ def st(i):
         raise TypeError("st(i) requires int(0 <= i < 8)")
     return _st_registers[i]
     
+
+# instruction pointer used for x86-64 rip relative indexing
+rip = Register(None, 'rip', 64)
 
 
 # Lists of registers used as arguments in standard calling conventions
