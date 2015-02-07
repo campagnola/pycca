@@ -2,6 +2,7 @@
 import logging as log
 from .. import asm
 
+
 class MachineState(object):
     """Tracks / manages machine state during compile:
 
@@ -17,12 +18,25 @@ class MachineState(object):
         self.globals = {}
         self.registers = {}
         self.anon_id = 0
+        self._next_data_id = 0
+        self._current_function = None
     
     @property
     def scope(self):
         if self.locals is not None:
             return self.locals
         return self.globals
+    
+    @property
+    def current_function(self):
+        """The function currently being compiled (or None if outside a function
+        definition).
+        """
+        return self._current_function
+    
+    @current_function.setter
+    def current_function(self, fn):
+        self._current_function = fn
     
     def get_register(self, var):
         """Return the register where *var* can be accessed.
@@ -44,7 +58,7 @@ class MachineState(object):
         If no registers are available, then code is added to move a value out
         to memory.
         """
-        for reg in all_registers(type, bits):
+        for reg in asm.all_registers(type, bits):
             if reg not in self.registers:
                 return reg
         
@@ -81,6 +95,21 @@ class MachineState(object):
         self.scope[var.name] = var
         if var.reg is not None:
             self.update_register(var.reg, var)
+
+    def add_data(self, name, data):
+        """Add raw data to the compiled machine code.
+        
+        *data* must be bytes or bytearray; *name* can be either a string name
+        for a label to add at the location of the data, or None in which case
+        a name is selected automatically.
+        
+        Returns a Label.
+        """
+        if name is None:
+            name = '__data_%d' % self._next_data_id
+            self._next_data_id += 1
+        self.data.append((name, data))
+        return asm.Label(name)
         
     def add_function(self, func):
         """Add a new function to the global scope.
@@ -127,11 +156,11 @@ class MachineState(object):
         
         if var.operand_type == 'i':
             if var.type == 'int':
-                state.add_code([asm.mov(dest, var.init)])
+                self.add_code([asm.mov(dest, var.init)])
             elif var.type == 'double':
-                reg = state.free_register(type='gp', size=64)
-                state.add_code([
-                    asm.mov(reg, result.get_operand()),
+                reg = self.free_register(type='gp', bits=64)
+                self.add_code([
+                    asm.mov(reg, var.get_pointer(self)),
                     asm.movsd(asm.xmm0, reg)
                 ])
             else:
@@ -140,16 +169,19 @@ class MachineState(object):
             if var.type == 'int':
                 if var.location is dest:
                     return
-                state.add_code([asm.mov(dest, var.location)])
-                state.update_register(dest, var)
+                self.add_code([asm.mov(dest, var.location)])
+                self.update_register(dest, var)
                 return
             elif var.type == 'double':
-                state.add_code([asm.movsd(asm.xmm0, result.location)])
-                state.update_register(asm.xmm0, result)
+                self.add_code([asm.movsd(asm.xmm0, var.location)])
+                self.update_register(asm.xmm0, result)
             else:
                 raise NotImplementedError('move %s, %s' % (dest, var))
             
-        
+    def compile_data(self):
+        for name, data in self.data:
+            self.code.append(Label(name))
+            self.code.append(data)
 
 
 class LocalScope(object):

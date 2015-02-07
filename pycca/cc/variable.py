@@ -57,6 +57,29 @@ class Variable(object):
             return reg
         else:
             raise NotImplementedError()
+        
+    def get_pointer(self, state):
+        """Return a memory pointer for this variable. 
+        
+        If the variable is immediate, then the value will be stored alongside
+        the machine code. If the variable only exists in a register, then an
+        exception is raised.
+        """
+        if self.addr is None:
+            if self.init is None:
+                raise TypeError("Cannot get memory address for %s" % self)
+            data = struct.pack(self.struct_typ, self.init)
+            label = state.add_data(name=None, data=data)
+
+    @property
+    def struct_typ(self):
+        """Return a type code appropriate for encoding this variable using
+        struct.pack().
+        """
+        return {
+            'int': 'i',
+            'double': 'd',
+        }[self.type]
 
     @property
     def operand_type(self):

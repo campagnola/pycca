@@ -26,6 +26,8 @@ class CCode(object):
                 func.argtypes = obj.c_argtypes
                 func.name = obj.name
                 setattr(self, obj.name, func)
+            
+        state.compile_data()
         
     def dump_asm(self):
         return self.codepage.dump()

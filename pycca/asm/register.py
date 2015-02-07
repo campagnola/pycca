@@ -46,7 +46,42 @@ from .util import long
 
 """
 
+_regs_by_bits = None
+_regs_by_type = None
+_all_regs = None
+def all_registers(type=None, bits=None):
+    """Return a set of all registers matching *type* and/or *bits*.
+    """
+    global _regs_by_bits, _regs_by_type, _all_regs
+    # collect all registers on the first call
+    if _regs_by_bits is None:
+        _regs_by_bits = dict([(b, set()) for b in [8, 16, 32, 64, 80, 128, 256]])
+        _regs_by_type = dict([(b, set()) for b in ['gp', 'st', 'mm', 'xmm']])
+        _all_regs = set()
+        for name, obj in globals().items():
+            if not isinstance(obj, Register):
+                continue
+            _all_regs.add(obj)
+            _regs_by_bits[obj.bits].add(obj)
+            if obj.name.startswith('mm'):
+                _regs_by_type['mm'].add(obj)
+            elif obj.name.startswith('xmm'):
+                _regs_by_type['xmm'].add(obj)
+            else:
+                _regs_by_type['gp'].add(obj)
 
+        for i in range(8):
+            _all_regs.add(st(i))
+            _regs_by_bits[80].add(st(i))
+            _regs_by_type['st'].add(st(i))
+
+    regs = _all_regs
+    if type is not None:
+        regs = regs & _regs_by_type[type]
+    if bits is not None:
+        regs = regs & _regs_by_bits[bits]
+    return regs
+        
 
 #   Register definitions
 #----------------------------------------

@@ -78,10 +78,12 @@ class Function(CodeObject):
             
             # Compile function contents
             state.add_code([asm.label(self.name)])
+            state.current_function = self
             
             # todo: prologue, epilogue
             for item in self.code:
                 item.compile(state)
+            state.current_function = None
             
             state.add_code([asm.ret()])
 
@@ -113,8 +115,8 @@ class Return(CodeObject):
             expr = Expression(self.expr)
             result = expr.compile(state)
             
-            fn = state.current_function()
-            restype = fn.return_type
+            fn = state.current_function
+            restype = fn.rtype
             if result.type != restype:
                 raise TypeError("Function requires return type %s; got %s" % 
                                 (restype, result.type))

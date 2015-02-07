@@ -217,17 +217,17 @@ def write_as_code_cache():
         pass
 
 
-def all_registers():
-    """Return all registers defined in asm.register
-    (excluding st(i) registers)
-    """
-    from . import register
-    regs = []
-    for name in dir(register):
-        obj = getattr(register, name)
-        if isinstance(obj, register.Register):
-            regs.append(obj)
-    return regs
+#def all_registers():
+    #"""Return all registers defined in asm.register
+    #(excluding st(i) registers)
+    #"""
+    #from . import register
+    #regs = []
+    #for name in dir(register):
+        #obj = getattr(register, name)
+        #if isinstance(obj, register.Register):
+            #regs.append(obj)
+    #return regs
 
 
 _invalid_regs = None
@@ -247,7 +247,7 @@ def invalid_regs():
 
     _invalid_regs = []
     nullptr = as_code('push [0x0]')
-    for reg in all_registers():
+    for reg in register.all_registers():
         try:
             code = as_code('push %s' % reg.name, quiet=True)
             if code == nullptr:
@@ -260,8 +260,8 @@ def invalid_regs():
 def check_valid_pointer(instr='push', pre=None, post=None):
     """Print a table indicating valid pointer modes for each register.
     """
-    from . import instructions
-    regs = all_registers()
+    from . import instructions, register
+    regs = register.all_registers()
     regs.sort(key=lambda a: (a.bits, a.name))
     checks = ['{reg}', 
               '[{reg}]',   '[2*{reg}]',   '[{reg}+{reg}]',   '[2*{reg}+{reg}]', 
